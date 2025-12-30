@@ -46,7 +46,7 @@ export async function GET() {
         ok: false,
         db: 'error',
         latency_ms: latencyMs,
-        error: String(err?.message || err),
+        code: 'db_unavailable',
       },
       500
     );

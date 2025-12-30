@@ -77,6 +77,11 @@ async function execMikrotikCommand(host, user, pass, command) {
 async function main() {
   try {
     const mikIdOrIp = process.argv[2] || 'LOPESUL-HOTSPOT-06';
+    const safeInput = /^[a-zA-Z0-9._:-]+$/;
+    if (!safeInput.test(mikIdOrIp)) {
+      console.error('❌ Identificador inválido. Use apenas letras/números/._:-');
+      return;
+    }
     
     console.log('🔍 Verificando ordem das regras de firewall...');
     console.log(`   Roteador: ${mikIdOrIp}`);
@@ -216,4 +221,3 @@ async function main() {
 }
 
 main();
-

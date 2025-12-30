@@ -31,6 +31,7 @@ const redirectContent = `<!DOCTYPE html>
 </html>`;
 
 console.log('📝 Criando redirect.html no Mikrotik via API...\n');
+const escapedRedirect = JSON.stringify(redirectContent);
 
 async function exec(command, args = {}) {
   const res = await fetch(`${API_URL}/relay/exec`, {
@@ -79,7 +80,7 @@ async function main() {
     console.log('2️⃣  Criando script temporário no Mikrotik...');
     
     const scriptName = 'temp-create-redirect';
-    const scriptContent = `:local content "${redirectContent.replace(/\n/g, '\\n').replace(/"/g, '\\"')}"
+    const scriptContent = `:local content ${escapedRedirect}
 :local filename "${targetDir}/redirect.html"
 /file remove [find name="\$filename"]
 :delay 1s

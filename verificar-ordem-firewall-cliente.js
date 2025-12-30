@@ -92,6 +92,11 @@ async function main() {
   try {
     const IP = process.argv[2];
     const MIK_ID = process.argv[3] || null;
+    const safeInput = /^[a-zA-Z0-9._:-]+$/;
+    if (MIK_ID && !safeInput.test(MIK_ID)) {
+      console.error('❌ Identificador inválido. Use apenas letras/números/._:-');
+      return;
+    }
     
     if (!IP) {
       console.log('📋 Uso: node verificar-ordem-firewall-cliente.js <IP> [mikId]');
@@ -253,4 +258,3 @@ async function main() {
 }
 
 main();
-

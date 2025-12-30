@@ -138,9 +138,20 @@
       const API = ""; // mesmo domínio
 
       const get = (n) => new URLSearchParams(location.search).get(n);
+      const sanitizeRedirect = (url) => {
+        if (!url) return null;
+        try {
+          const parsed = new URL(url, window.location.origin);
+          const allowedProtocols = new Set(['http:', 'https:']);
+          if (!allowedProtocols.has(parsed.protocol)) return null;
+          return parsed.href;
+        } catch {
+          return null;
+        }
+      };
       let mac = get("mac") || null;
       let ip = get("ip") || null;
-      const linkOrig = get("link_orig") || get("link-orig") || "";
+      const linkOrig = sanitizeRedirect(get("link_orig") || get("link-orig") || "");
       const normalize = (value) => (typeof value === 'string' ? value.trim() : '');
       const sanitizeId = (value) => {
         const trimmed = normalize(value);
@@ -305,15 +316,15 @@
             }
             
             // Redirecionar após 2 segundos
-            setTimeout(() => {
-              try {
-                const fallback = 'http://clients3.google.com/generate_204';
-                const candidate = linkOrig || fallback;
-                window.location.href = candidate;
-              } catch {
-                window.location.href = '/';
-              }
-            }, 2000);
+              setTimeout(() => {
+                try {
+                  const fallback = 'http://clients3.google.com/generate_204';
+                  const candidate = linkOrig || fallback;
+                  window.location.href = candidate;
+                } catch {
+                  window.location.href = '/';
+                }
+              }, 2000);
             
             return true;
           }
