@@ -1,0 +1,55 @@
+name: deploy-backend
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (apenas para ler o SHA)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Validar variáveis do deploy
+        env:
+          SSH_HOST: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
+          SSH_USER: ${{ secrets.VPS_USER || vars.VPS_USER }}
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY || vars.VPS_SSH_KEY }}
+          SSH_PORT: ${{ secrets.VPS_PORT || vars.VPS_PORT || 22 }}
+        run: |
+          missing=()
+          [ -z "$SSH_HOST" ] && missing+=("VPS_HOST")
+          [ -z "$SSH_USER" ] && missing+=("VPS_USER")
+          [ -z "$SSH_KEY" ] && missing+=("VPS_SSH_KEY")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Secrets/Variables ausentes: ${missing[*]} (Configurar em Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY || vars.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || vars.VPS_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -e
+            cd /opt/lopesul-dashboard
+            # garante repo válido
+            git remote -v || { echo "Repositório não existe em /opt/lopesul-dashboard"; exit 1; }
+            git fetch --all --prune
+            git reset --hard $GITHUB_SHA || git reset --hard origin/main
+
+            # instala só prod e builda
+            npm ci --omit=dev
+            npm run build
+
+            # reinicia PM2 com envs carregadas do ambiente
+            pm2 restart "${PM2_APP:-lopesul-dashboard}" --update-env
+            pm2 save
+            pm2 ls
