@@ -172,8 +172,8 @@ async function main() {
         .map((r, idx) => ({ ...r, position: idx + 1 }))
         .sort((a, b) => {
           // Ordenar por .id (ordem de execução no Mikrotik)
-          const aId = parseInt(a['.id']?.replace('*', '') || '0', 16);
-          const bId = parseInt(b['.id']?.replace('*', '') || '0', 16);
+          const aId = parseInt(a['.id']?.replace(/\*/g, '') || '0', 16);
+          const bId = parseInt(b['.id']?.replace(/\*/g, '') || '0', 16);
           return aId - bId;
         });
 
