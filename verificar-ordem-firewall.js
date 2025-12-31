@@ -41,6 +41,12 @@ const prisma = new PrismaClient({
 const RELAY_BASE = env.RELAY_URL || env.RELAY_BASE || 'http://localhost:4000';
 const RELAY_TOKEN = env.RELAY_TOKEN || '';
 
+// Sanitiza strings vindas do Mikrotik para evitar logs com caracteres de controle
+const sanitizeLog = (v) =>
+  String(v ?? '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[^\w\s.:@/+-]/g, '');
+
 async function execMikrotikCommand(host, user, pass, command) {
   try {
     if (!RELAY_TOKEN || RELAY_TOKEN.length < 10) {
@@ -164,9 +170,11 @@ async function main() {
 
     regras.forEach((r, idx) => {
       const disabled = r.disabled === 'true' ? ' ⚠️ DESABILITADA' : '';
-      const action = r.action || 'N/A';
-      const srcList = r['src-address-list'] || 'N/A';
-      const comment = r.comment || 'N/A';
+      const action = sanitizeLog(r.action || 'N/A');
+      const srcList = sanitizeLog(r['src-address-list'] || 'N/A');
+      const comment = sanitizeLog(r.comment || 'N/A');
+      const ruleId = sanitizeLog(r['.id'] || 'N/A');
+      const srcAddress = sanitizeLog(r['src-address'] || 'N/A');
       
       let emoji = '  ';
       if (srcList === 'paid_clients' && action === 'accept') {
@@ -181,10 +189,10 @@ async function main() {
         emoji = '✅';
       }
 
-      console.log(`${emoji} ${idx + 1}. ID: ${r['.id'] || 'N/A'}${disabled}`);
+      console.log(`${emoji} ${idx + 1}. ID: ${ruleId}${disabled}`);
       console.log(`      Action: ${action}`);
       console.log(`      Src Address List: ${srcList}`);
-      console.log(`      Src Address: ${r['src-address'] || 'N/A'}`);
+      console.log(`      Src Address: ${srcAddress}`);
       console.log(`      Comentário: ${comment}`);
       console.log('');
     });

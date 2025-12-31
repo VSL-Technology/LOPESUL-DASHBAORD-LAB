@@ -41,6 +41,11 @@ const prisma = new PrismaClient({
 const RELAY_BASE = env.RELAY_URL || env.RELAY_BASE || 'http://localhost:4000';
 const RELAY_TOKEN = env.RELAY_TOKEN || '';
 
+const sanitizeLog = (v) =>
+  String(v ?? '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[^\w\s.:@/+-]/g, '');
+
 async function execMikrotikCommand(host, user, pass, command) {
   if (!RELAY_TOKEN) {
     return { ok: false, error: 'RELAY_TOKEN ausente' };
@@ -183,9 +188,9 @@ async function main() {
       if (paidRuleIndex >= 0) {
         const paidRule = forwardRules[paidRuleIndex];
         console.log(`✅ Regra paid_clients encontrada na posição ${paidRuleIndex + 1}:`);
-        console.log(`   ID: ${paidRule['.id'] || 'N/A'}`);
-        console.log(`   Action: ${paidRule.action || 'N/A'}`);
-        console.log(`   Src Address List: ${paidRule['src-address-list'] || 'N/A'}`);
+        console.log(`   ID: ${sanitizeLog(paidRule['.id'] || 'N/A')}`);
+        console.log(`   Action: ${sanitizeLog(paidRule.action || 'N/A')}`);
+        console.log(`   Src Address List: ${sanitizeLog(paidRule['src-address-list'] || 'N/A')}`);
         console.log('');
       } else {
         console.log('❌ Regra paid_clients NÃO encontrada!');
@@ -210,11 +215,11 @@ async function main() {
         if (blockingRules.length > 0) {
           console.log(`⚠️  ${blockingRules.length} regra(s) que podem bloquear ANTES da regra paid_clients:`);
           blockingRules.forEach((r, idx) => {
-            console.log(`   ${idx + 1}. ID: ${r['.id'] || 'N/A'}`);
-            console.log(`      Action: ${r.action}`);
-            console.log(`      Src Address: ${r['src-address'] || 'N/A'}`);
-            console.log(`      Src Address List: ${r['src-address-list'] || 'N/A'}`);
-            console.log(`      Comentário: ${r.comment || 'N/A'}`);
+            console.log(`   ${idx + 1}. ID: ${sanitizeLog(r['.id'] || 'N/A')}`);
+            console.log(`      Action: ${sanitizeLog(r.action)}`);
+            console.log(`      Src Address: ${sanitizeLog(r['src-address'] || 'N/A')}`);
+            console.log(`      Src Address List: ${sanitizeLog(r['src-address-list'] || 'N/A')}`);
+            console.log(`      Comentário: ${sanitizeLog(r.comment || 'N/A')}`);
             console.log('');
           });
           console.log('💡 PROBLEMA: Essas regras podem estar bloqueando o cliente antes da regra paid_clients!');
@@ -230,7 +235,9 @@ async function main() {
       forwardRules.slice(0, 10).forEach((r, idx) => {
         const isPaid = r['src-address-list'] && r['src-address-list'].includes('paid_clients');
         const marker = isPaid ? '⭐' : (r.action === 'drop' || r.action === 'reject') ? '🚫' : '  ';
-        console.log(`   ${marker} ${idx + 1}. ID: ${r['.id'] || 'N/A'}, Action: ${r.action || 'N/A'}, Src: ${r['src-address'] || r['src-address-list'] || 'N/A'}`);
+        console.log(
+          `   ${marker} ${idx + 1}. ID: ${sanitizeLog(r['.id'] || 'N/A')}, Action: ${sanitizeLog(r.action || 'N/A')}, Src: ${sanitizeLog(r['src-address'] || r['src-address-list'] || 'N/A')}`
+        );
       });
       console.log('');
     }

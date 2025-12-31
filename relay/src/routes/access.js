@@ -21,13 +21,15 @@ function rateLimit(req, res, next) {
   return next();
 }
 
-router.post('/relay/authorize-by-pedido', rateLimit, async (req, res) => {
+router.use(rateLimit);
+
+router.post('/relay/authorize-by-pedido', async (req, res) => {
   const result = await authorizeByPedido(req.body || {});
   const status = result.ok ? 200 : 400;
   return res.status(status).json(result);
 });
 
-router.post('/relay/resync-device', rateLimit, async (req, res) => {
+router.post('/relay/resync-device', async (req, res) => {
   const result = await resyncDevice(req.body || {});
   const status = result.ok ? 200 : 400;
   return res.status(status).json(result);
