@@ -1,27 +1,18 @@
 import express from 'express';
 import { authorizeByPedido, resyncDevice } from '../services/accessService.js';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 
 // Rate limit básico por IP para evitar abuso (burst simples)
-const recentHits = new Map();
-const WINDOW_MS = 60_000;
-const MAX_HITS = 60;
+const limiter = rateLimit({
+  windowMs: 60_000, // 60 seconds
+  max: 60, // limit each IP to 60 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
 
-function rateLimit(req, res, next) {
-  const key = req.ip || req.headers['x-forwarded-for'] || 'unknown';
-  const now = Date.now();
-  const bucket = recentHits.get(key) || [];
-  const filtered = bucket.filter((ts) => now - ts < WINDOW_MS);
-  filtered.push(now);
-  recentHits.set(key, filtered);
-  if (filtered.length > MAX_HITS) {
-    return res.status(429).json({ ok: false, code: 'rate_limited' });
-  }
-  return next();
-}
-
-router.use(rateLimit);
+router.use(limiter);
 
 router.post('/relay/authorize-by-pedido', async (req, res) => {
   const result = await authorizeByPedido(req.body || {});
