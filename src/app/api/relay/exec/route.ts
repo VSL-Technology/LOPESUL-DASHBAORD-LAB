@@ -1,6 +1,6 @@
 // app/api/relay/exec/route.ts
 import { z } from 'zod';
-import { relayFetch } from '@/lib/relayFetch';
+import { relayFetchSigned } from '@/lib/relayFetchSigned';
 import { requireDeviceRouter } from '@/lib/device-router';
 import { checkInternalAuth } from '@/lib/security/internalAuth';
 import { logger } from '@/lib/logger';
@@ -8,6 +8,11 @@ import { recordApiMetric } from '@/lib/metrics/index';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+function resolveRelayBaseUrl() {
+  const base = process.env.RELAY_BASE_URL || process.env.RELAY_URL || process.env.RELAY_BASE || '';
+  return base.replace(/\/+$/, '');
+}
 
 // CORS (preflight)
 export async function OPTIONS() {
@@ -66,28 +71,43 @@ export async function POST(req: Request) {
     );
   }
 
-  try {
-    const r = await relayFetch(
-      '/relay/exec',
-      {
-        tokenEnv: 'RELAY_TOKEN_EXEC',
-        body: {
-          host: routerInfo.router.host,
-          user: routerInfo.router.user,
-          pass: routerInfo.router.pass,
-          port: routerInfo.router.port,
-          command,
-        },
-        timeoutMs: 5000,
-      } as any
-    );
+  const relayBaseUrl = resolveRelayBaseUrl();
+  const relayToken = process.env.RELAY_TOKEN_EXEC || '';
+  const apiSecret = process.env.RELAY_API_SECRET || '';
 
-    recordApiMetric('relay_exec', { durationMs: Date.now() - started, ok: r.ok });
-    return corsJson(r.json, r.status || (r.ok ? 200 : 502));
-  } catch (err) {
-    logger.error({ error: err?.message || err }, '[relay/exec] relay unreachable');
+  if (!relayBaseUrl || !relayToken || !apiSecret) {
+    logger.error(
+      { hasBase: !!relayBaseUrl, hasToken: !!relayToken, hasSecret: !!apiSecret },
+      '[relay/exec] missing relay config'
+    );
     recordApiMetric('relay_exec', { durationMs: Date.now() - started, ok: false });
-    return corsJson({ ok: false, error: 'relay_unreachable' }, 502);
+    return corsJson({ ok: false, error: 'relay_config_missing' }, 500);
+  }
+
+  try {
+    const resp = await relayFetchSigned({
+      method: 'POST',
+      originalUrl: '/relay/exec',
+      body: {
+        host: routerInfo.router.host,
+        user: routerInfo.router.user,
+        pass: routerInfo.router.pass,
+        port: routerInfo.router.port,
+        command,
+      },
+      baseUrl: relayBaseUrl,
+      token: relayToken,
+      apiSecret,
+    });
+
+    recordApiMetric('relay_exec', { durationMs: Date.now() - started, ok: resp.ok });
+    return corsJson(resp.data ?? resp, resp.status || (resp.ok ? 200 : 502));
+  } catch (err: any) {
+    const status = err?.status || 502;
+    const payload = err?.data || { ok: false, error: err?.message || 'relay_unreachable' };
+    logger.error({ error: err?.message || err, status }, '[relay/exec] relay unreachable');
+    recordApiMetric('relay_exec', { durationMs: Date.now() - started, ok: false });
+    return corsJson(payload, status);
   }
 }
 
