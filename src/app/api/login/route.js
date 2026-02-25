@@ -208,6 +208,11 @@ export async function POST(req) {
 
     return res;
   } catch (e) {
+    console.error({
+      route: 'api_login',
+      error: e?.message || String(e),
+      stack: e?.stack,
+    });
     logger.error({ ip, error: e?.message || e }, 'POST /api/login');
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }

@@ -1,6 +1,5 @@
 // src/lib/auth/session.js
 import jwt from 'jsonwebtoken';
-import { ENV } from '@/lib/env';
 
 const SESSION_TTL_SECONDS = 60 * 60 * 4; // 4 horas
 
@@ -11,6 +10,14 @@ function resolveRole(role) {
   return 'READER';
 }
 
+function getSessionSecret() {
+  const secret = String(process.env.SESSION_SECRET || '').trim();
+  if (!secret) {
+    throw new Error('SESSION_SECRET não configurado');
+  }
+  return secret;
+}
+
 export function createSessionToken(operador, ttlSeconds = SESSION_TTL_SECONDS) {
   const payload = {
     sub: operador.id,
@@ -18,14 +25,14 @@ export function createSessionToken(operador, ttlSeconds = SESSION_TTL_SECONDS) {
     role: resolveRole(operador.role),
   };
 
-  return jwt.sign(payload, ENV.SESSION_SECRET, {
+  return jwt.sign(payload, getSessionSecret(), {
     expiresIn: ttlSeconds,
   });
 }
 
 export function verifySession(token) {
   try {
-    const payload = jwt.verify(token, ENV.SESSION_SECRET);
+    const payload = jwt.verify(token, getSessionSecret());
     return { ...payload, role: resolveRole(payload.role) };
   } catch {
     return null;
