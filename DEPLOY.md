@@ -25,8 +25,8 @@ GitHub Actions (deploy automático)
   - `git fetch --all --prune`
   - `git reset --hard <sha/ref>`
   - `docker compose config -q`
-  - `docker compose pull --ignore-pull-failures`
-  - `docker compose build --pull` (somente se houver `build:` no compose)
+  - `docker compose down`
+  - `docker compose build --no-cache --pull`
   - `docker compose run --rm <service> npm run db:deploy` (somente se `VPS_DOCKER_MIGRATE_SERVICE` estiver definido)
   - `docker compose up -d --remove-orphans`
 

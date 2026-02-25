@@ -121,13 +121,9 @@ jobs:
 
             echo "Compose file: ${COMPOSE_PATH}"
             dc config -q
-            dc pull --ignore-pull-failures || true
 
-            if dc config | grep -q "build:"; then
-              dc build --pull
-            else
-              echo "Compose sem serviços com build. Pulando etapa de build."
-            fi
+            dc down
+            dc build --no-cache --pull
 
             if [ -n "${DOCKER_MIGRATE_SERVICE:-}" ]; then
               echo "Executando migrações no serviço: ${DOCKER_MIGRATE_SERVICE}"
