@@ -1,5 +1,19 @@
 import prisma from '@/lib/prisma';
-import { processAudit } from '@/lib/alerts/engine';
+
+let processAuditLoader = null;
+
+function getProcessAudit() {
+  if (!processAuditLoader) {
+    processAuditLoader = import('@/lib/alerts/engine')
+      .then((mod) => mod?.processAudit || null)
+      .catch((err) => {
+        console.error('[AUDIT->ALERT] failed to load engine', err?.message || err);
+        return null;
+      });
+  }
+
+  return processAuditLoader;
+}
 
 /**
  * Audit logger helper — single place to write audit events.
@@ -21,9 +35,16 @@ export async function auditLog(data) {
     // Fire-and-forget: let the alert engine evaluate this audit record asynchronously.
     // Don't await to avoid blocking main flow.
     try {
-      processAudit(created).catch((e) => {
-        console.error('[AUDIT->ALERT] processing failed', e?.message || e);
-      });
+      getProcessAudit()
+        .then((processAudit) => {
+          if (!processAudit) return;
+          return processAudit(created).catch((e) => {
+            console.error('[AUDIT->ALERT] processing failed', e?.message || e);
+          });
+        })
+        .catch((e) => {
+          console.error('[AUDIT->ALERT] loader failed', e?.message || e);
+        });
     } catch (e) {
       // ignore
     }

@@ -55,9 +55,23 @@ export default function LoginPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ usuario, senha }),
       });
-      const j = await res.json();
       if (!res.ok) {
-        alert(j?.error || "Falha ao entrar.");
+        const ct = res.headers.get("content-type") || "";
+        let message = "Falha ao entrar.";
+
+        if (ct.includes("application/json")) {
+          const j = await res.json().catch(() => null);
+          if (j?.error) message = j.error;
+        } else {
+          const text = await res.text().catch(() => "");
+          if (text.includes("<!DOCTYPE")) {
+            message = "Erro interno no servidor. Tente novamente em instantes.";
+          } else if (text.trim()) {
+            message = text.slice(0, 180);
+          }
+        }
+
+        alert(message);
         return;
       }
       window.location.href = getNextPath();
