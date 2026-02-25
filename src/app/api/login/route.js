@@ -156,7 +156,11 @@ export async function POST(req) {
       (pref && DUR[pref]) ||
       (await getDefaultSeconds());
 
-    const role = op.role === 'MASTER' || op.role === 'ADMIN' ? 'MASTER' : 'READER';
+    const normalizedRole = String(op.role || '').toUpperCase();
+    const role =
+      normalizedRole === 'MASTER' || normalizedRole === 'ADMIN'
+        ? 'MASTER'
+        : 'READER';
     const sessionToken = createSessionToken(
       { id: op.id, nome: op.nome, role },
       chosen

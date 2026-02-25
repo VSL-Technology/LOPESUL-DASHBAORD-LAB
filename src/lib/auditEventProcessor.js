@@ -6,6 +6,26 @@ import prisma from '@/lib/prisma';
 import { liberarAcessoInteligente } from '@/lib/liberarAcesso';
 import { logger } from '@/lib/logger';
 
+let warnedMissingAuditLogDelegate = false;
+
+function getAuditLogDelegate() {
+  if (prisma?.auditLog) {
+    return prisma.auditLog;
+  }
+
+  if (!warnedMissingAuditLogDelegate) {
+    warnedMissingAuditLogDelegate = true;
+    logger.warn(
+      {
+        hint: 'Run `npm run prisma:generate` and restart Next.js dev server',
+      },
+      '[AUDIT_PROCESSOR] Prisma client missing auditLog delegate; skipping processor'
+    );
+  }
+
+  return null;
+}
+
 /**
  * Process pending WEBHOOK_RELEASE_REQUESTED audit events
  * These are created by the payment webhook but need to be acted upon
@@ -13,8 +33,13 @@ import { logger } from '@/lib/logger';
  */
 async function processPendingReleaseRequests(limit = 10) {
   try {
+    const auditLogModel = getAuditLogDelegate();
+    if (!auditLogModel) {
+      return;
+    }
+
     // Find audit events that need processing
-    const pendingEvents = await prisma.auditLog.findMany({
+    const pendingEvents = await auditLogModel.findMany({
       where: {
         event: 'WEBHOOK_RELEASE_REQUESTED',
         result: 'PENDING',
@@ -49,10 +74,15 @@ async function processPendingReleaseRequests(limit = 10) {
 async function processReleaseRequest(event) {
   const metadata = event.metadata || {};
   const { pedidoId, ip, mac, router, orderCode } = metadata;
+  const auditLogModel = getAuditLogDelegate();
+
+  if (!auditLogModel) {
+    return;
+  }
 
   try {
     // Mark as processing to prevent duplicate processing
-    await prisma.auditLog.update({
+    await auditLogModel.update({
       where: { id: event.id },
       data: { result: 'PROCESSING' },
     });
@@ -64,7 +94,7 @@ async function processReleaseRequest(event) {
 
     // Validate we have required data
     if (!pedidoId) {
-      await prisma.auditLog.update({
+      await auditLogModel.update({
         where: { id: event.id },
         data: {
           result: 'FAILED',
@@ -106,7 +136,7 @@ async function processReleaseRequest(event) {
 
     // Update audit log with result
     const resultStatus = releaseResult?.ok ? 'SUCCESS' : 'FAILED';
-    await prisma.auditLog.update({
+    await auditLogModel.update({
       where: { id: event.id },
       data: {
         result: resultStatus,
@@ -129,7 +159,7 @@ async function processReleaseRequest(event) {
   } catch (error) {
     // Update audit log to mark as failed
     try {
-      await prisma.auditLog.update({
+      await auditLogModel.update({
         where: { id: event.id },
         data: {
           result: 'FAILED',

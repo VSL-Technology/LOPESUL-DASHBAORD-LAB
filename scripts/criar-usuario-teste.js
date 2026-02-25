@@ -25,29 +25,23 @@ async function main() {
     // Hash da senha
     const senhaHash = await bcrypt.hash(password, 10);
 
-    // Verificar se já existe
-    const existente = await prisma.operador.findUnique({
+    // Criar (ou atualizar) usuário com permissão MASTER
+    const operador = await prisma.operador.upsert({
       where: { nome: email },
-    });
-
-    if (existente) {
-      console.log('⚠️  Usuário já existe!');
-      console.log(`   ID: ${existente.id}`);
-      console.log(`   Ativo: ${existente.ativo}`);
-      return;
-    }
-
-    // Criar usuário
-    const operador = await prisma.operador.create({
-      data: {
+      update: {
+        senha: senhaHash,
+        ativo: true,
+        role: 'MASTER',
+      },
+      create: {
         nome: email,
         senha: senhaHash,
         ativo: true,
-        role: 'admin',
+        role: 'MASTER',
       },
     });
 
-    console.log('✅ Usuário criado com sucesso!');
+    console.log('✅ Usuário MASTER pronto para login!');
     console.log('');
     console.log('📝 Use essas credenciais para fazer login:');
     console.log(`   Usuário: ${email}`);
