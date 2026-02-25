@@ -50,8 +50,9 @@ jobs:
         env:
           TARGET_REF: ${{ github.event.inputs.ref || github.sha }}
           APP_DIR: ${{ secrets.VPS_APP_DIR || vars.VPS_APP_DIR }}
-          PM2_APP: ${{ secrets.VPS_PM2_APP || vars.VPS_PM2_APP }}
-          PM2_FALLBACK_APP: ${{ secrets.VPS_PM2_FALLBACK_APP || vars.VPS_PM2_FALLBACK_APP || 'lopesul-dashboard' }}
+          DOCKER_COMPOSE_FILE: ${{ secrets.VPS_DOCKER_COMPOSE_FILE || vars.VPS_DOCKER_COMPOSE_FILE }}
+          DOCKER_PROJECT_NAME: ${{ secrets.VPS_DOCKER_PROJECT_NAME || vars.VPS_DOCKER_PROJECT_NAME }}
+          DOCKER_MIGRATE_SERVICE: ${{ secrets.VPS_DOCKER_MIGRATE_SERVICE || vars.VPS_DOCKER_MIGRATE_SERVICE }}
           HEALTHCHECK_URL: ${{ secrets.VPS_HEALTHCHECK_URL || vars.VPS_HEALTHCHECK_URL }}
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
@@ -60,7 +61,7 @@ jobs:
           port: ${{ secrets.VPS_PORT || vars.VPS_PORT || 22 }}
           script_stop: true
           command_timeout: 25m
-          envs: TARGET_REF,APP_DIR,PM2_APP,PM2_FALLBACK_APP,HEALTHCHECK_URL
+          envs: TARGET_REF,APP_DIR,DOCKER_COMPOSE_FILE,DOCKER_PROJECT_NAME,DOCKER_MIGRATE_SERVICE,HEALTHCHECK_URL
           script: |
             set -Eeuo pipefail
 
@@ -84,24 +85,57 @@ jobs:
             git fetch --all --prune
             git reset --hard "${TARGET_REF}" || git reset --hard origin/main
 
-            npm ci --no-audit --fund=false
-            npm run db:deploy
-            npm run build
-
-            if [ -n "${PM2_APP:-}" ] && pm2 describe "${PM2_APP}" >/dev/null 2>&1; then
-              APP_NAME="${PM2_APP}"
-            elif pm2 describe "lopesul-painel" >/dev/null 2>&1; then
-              APP_NAME="lopesul-painel"
-            elif pm2 describe "${PM2_FALLBACK_APP}" >/dev/null 2>&1; then
-              APP_NAME="${PM2_FALLBACK_APP}"
+            if docker compose version >/dev/null 2>&1; then
+              if [ -n "${DOCKER_PROJECT_NAME:-}" ]; then
+                dc() { docker compose -f "${COMPOSE_PATH}" --project-name "${DOCKER_PROJECT_NAME}" "$@"; }
+              else
+                dc() { docker compose -f "${COMPOSE_PATH}" "$@"; }
+              fi
+            elif command -v docker-compose >/dev/null 2>&1; then
+              if [ -n "${DOCKER_PROJECT_NAME:-}" ]; then
+                dc() { docker-compose -f "${COMPOSE_PATH}" -p "${DOCKER_PROJECT_NAME}" "$@"; }
+              else
+                dc() { docker-compose -f "${COMPOSE_PATH}" "$@"; }
+              fi
             else
-              APP_NAME="${PM2_APP:-lopesul-painel}"
-              pm2 start npm --name "${APP_NAME}" -- start
+              echo "ERRO: docker compose não encontrado na VPS."
+              exit 1
             fi
 
-            pm2 restart "${APP_NAME}" --update-env
-            pm2 save
-            pm2 ls
+            if [ -n "${DOCKER_COMPOSE_FILE:-}" ]; then
+              COMPOSE_PATH="${DOCKER_COMPOSE_FILE}"
+            else
+              for candidate in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
+                if [ -f "${candidate}" ]; then
+                  COMPOSE_PATH="${candidate}"
+                  break
+                fi
+              done
+            fi
+
+            if [ -z "${COMPOSE_PATH:-}" ]; then
+              echo "ERRO: arquivo docker compose não encontrado."
+              echo "Defina VPS_DOCKER_COMPOSE_FILE ou adicione compose no diretório do app."
+              exit 1
+            fi
+
+            echo "Compose file: ${COMPOSE_PATH}"
+            dc config -q
+            dc pull --ignore-pull-failures || true
+
+            if dc config | grep -q "build:"; then
+              dc build --pull
+            else
+              echo "Compose sem serviços com build. Pulando etapa de build."
+            fi
+
+            if [ -n "${DOCKER_MIGRATE_SERVICE:-}" ]; then
+              echo "Executando migrações no serviço: ${DOCKER_MIGRATE_SERVICE}"
+              dc run --rm "${DOCKER_MIGRATE_SERVICE}" npm run db:deploy
+            fi
+
+            dc up -d --remove-orphans
+            dc ps
 
             if [ -n "${HEALTHCHECK_URL:-}" ]; then
               echo "Healthcheck: ${HEALTHCHECK_URL}"
