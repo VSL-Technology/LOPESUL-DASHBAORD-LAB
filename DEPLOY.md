@@ -8,7 +8,23 @@ Prereqs
 - Public domain (recommended) and reverse proxy (nginx or Caddy)
 
 GitHub Actions (deploy automático)
-- Configure em **Settings > Secrets and variables > Actions**: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_PORT` (prefira **Secrets**; use **Variables** apenas se aceitar o valor em texto aberto).
+- Workflow: `.github/workflows/deploy.yml`
+- Dispara em `push` na `main` e também manualmente (`workflow_dispatch`, com campo opcional `ref`).
+- Configure em **Settings > Secrets and variables > Actions** (prefira Secrets):
+  - Obrigatórios: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`
+  - Opcionais:
+    - `VPS_PORT` (default `22`)
+    - `VPS_APP_DIR` (diretório do projeto na VPS; se vazio, tenta `/opt/lopesul-dashboard` e depois `/opt/painel-new`)
+    - `VPS_PM2_APP` (nome do processo PM2 principal)
+    - `VPS_PM2_FALLBACK_APP` (fallback, default `lopesul-dashboard`)
+    - `VPS_HEALTHCHECK_URL` (se definido, o deploy valida HTTP ao final)
+- Fluxo remoto executado na VPS:
+  - `git fetch --all --prune`
+  - `git reset --hard <sha/ref>`
+  - `npm ci`
+  - `npm run db:deploy`
+  - `npm run build`
+  - `pm2 restart <app> --update-env` (ou `pm2 start npm --name <app> -- start` se não existir)
 
 Environment
 1) Copy .env.example to .env (or export as system envs) and set:
