@@ -1,151 +1,25 @@
-name: deploy-vps
+name: Deploy Dashboard
 
 on:
   push:
-    branches: ["main"]
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Branch, tag ou SHA para deploy (opcional)"
-        required: false
-        default: "main"
-
-permissions:
-  contents: read
-
-concurrency:
-  group: deploy-vps
-  cancel-in-progress: false
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+
     steps:
-      - name: Checkout (metadados do repositório)
-        uses: actions/checkout@v4
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
         with:
-          fetch-depth: 0
-
-      - name: Validar variáveis obrigatórias
-        env:
-          SSH_HOST: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
-          SSH_USER: ${{ secrets.VPS_USER || vars.VPS_USER }}
-          SSH_KEY: ${{ secrets.VPS_SSH_KEY || vars.VPS_SSH_KEY }}
-          SSH_PORT: ${{ secrets.VPS_PORT || vars.VPS_PORT || 22 }}
-        run: |
-          missing=()
-          [ -z "$SSH_HOST" ] && missing+=("VPS_HOST")
-          [ -z "$SSH_USER" ] && missing+=("VPS_USER")
-          [ -z "$SSH_KEY" ] && missing+=("VPS_SSH_KEY")
-          [ -z "$SSH_PORT" ] && missing+=("VPS_PORT")
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::error::Secrets/Variables ausentes: ${missing[*]}."
-            echo "::error::Configure em Settings > Secrets and variables > Actions."
-            exit 1
-          fi
-
-      - name: Deploy + build dentro da VPS
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          TARGET_REF: ${{ github.event.inputs.ref || github.sha }}
-          APP_DIR: ${{ secrets.VPS_APP_DIR || vars.VPS_APP_DIR }}
-          DOCKER_COMPOSE_FILE: ${{ secrets.VPS_DOCKER_COMPOSE_FILE || vars.VPS_DOCKER_COMPOSE_FILE }}
-          DOCKER_PROJECT_NAME: ${{ secrets.VPS_DOCKER_PROJECT_NAME || vars.VPS_DOCKER_PROJECT_NAME }}
-          DOCKER_MIGRATE_SERVICE: ${{ secrets.VPS_DOCKER_MIGRATE_SERVICE || vars.VPS_DOCKER_MIGRATE_SERVICE }}
-          HEALTHCHECK_URL: ${{ secrets.VPS_HEALTHCHECK_URL || vars.VPS_HEALTHCHECK_URL }}
-        with:
-          host: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
-          username: ${{ secrets.VPS_USER || vars.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY || vars.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || vars.VPS_PORT || 22 }}
-          script_stop: true
-          command_timeout: 25m
-          envs: TARGET_REF,APP_DIR,DOCKER_COMPOSE_FILE,DOCKER_PROJECT_NAME,DOCKER_MIGRATE_SERVICE,HEALTHCHECK_URL
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            set -Eeuo pipefail
-
-            if [ -n "${APP_DIR:-}" ]; then
-              DEPLOY_DIR="$APP_DIR"
-            elif [ -d "/opt/lopesul-dashboard" ]; then
-              DEPLOY_DIR="/opt/lopesul-dashboard"
-            elif [ -d "/opt/painel-new" ]; then
-              DEPLOY_DIR="/opt/painel-new"
-            else
-              echo "ERRO: não foi possível localizar o diretório do app."
-              echo "Defina VPS_APP_DIR em Secrets/Variables."
-              exit 1
-            fi
-
-            echo "Deploy dir: ${DEPLOY_DIR}"
-            cd "${DEPLOY_DIR}"
-
-            [ -d ".git" ] || { echo "ERRO: ${DEPLOY_DIR} não é um repositório git."; exit 1; }
-
-            git fetch --all --prune
-            git reset --hard "${TARGET_REF}" || git reset --hard origin/main
-
-            if docker compose version >/dev/null 2>&1; then
-              if [ -n "${DOCKER_PROJECT_NAME:-}" ]; then
-                dc() { docker compose -f "${COMPOSE_PATH}" --project-name "${DOCKER_PROJECT_NAME}" "$@"; }
-              else
-                dc() { docker compose -f "${COMPOSE_PATH}" "$@"; }
-              fi
-            elif command -v docker-compose >/dev/null 2>&1; then
-              if [ -n "${DOCKER_PROJECT_NAME:-}" ]; then
-                dc() { docker-compose -f "${COMPOSE_PATH}" -p "${DOCKER_PROJECT_NAME}" "$@"; }
-              else
-                dc() { docker-compose -f "${COMPOSE_PATH}" "$@"; }
-              fi
-            else
-              echo "ERRO: docker compose não encontrado na VPS."
-              exit 1
-            fi
-
-            if [ -n "${DOCKER_COMPOSE_FILE:-}" ]; then
-              COMPOSE_PATH="${DOCKER_COMPOSE_FILE}"
-            else
-              for candidate in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
-                if [ -f "${candidate}" ]; then
-                  COMPOSE_PATH="${candidate}"
-                  break
-                fi
-              done
-            fi
-
-            if [ -z "${COMPOSE_PATH:-}" ]; then
-              echo "ERRO: arquivo docker compose não encontrado."
-              echo "Defina VPS_DOCKER_COMPOSE_FILE ou adicione compose no diretório do app."
-              exit 1
-            fi
-
-            echo "Compose file: ${COMPOSE_PATH}"
-            dc config -q
-
-            dc down
-            dc build --no-cache --pull
-
-            if [ -n "${DOCKER_MIGRATE_SERVICE:-}" ]; then
-              echo "Executando migrações no serviço: ${DOCKER_MIGRATE_SERVICE}"
-              dc run --rm "${DOCKER_MIGRATE_SERVICE}" npm run db:deploy
-            fi
-
-            dc up -d --remove-orphans
-            dc ps
-
-            if [ -n "${HEALTHCHECK_URL:-}" ]; then
-              echo "Healthcheck: ${HEALTHCHECK_URL}"
-              for i in 1 2 3 4 5; do
-                if curl -fsS --max-time 10 "${HEALTHCHECK_URL}" >/dev/null; then
-                  echo "Healthcheck OK"
-                  break
-                fi
-                if [ "${i}" -eq 5 ]; then
-                  echo "ERRO: healthcheck falhou após ${i} tentativas."
-                  exit 1
-                fi
-                sleep 5
-              done
-            else
-              echo "HEALTHCHECK_URL não configurada. Pulando validação HTTP."
-            fi
+            cd /opt/lopesul/apps/dashboard
+            git fetch origin
+            git reset --hard origin/main
+            docker compose down
+            docker compose build --no-cache
+            docker compose up -d
