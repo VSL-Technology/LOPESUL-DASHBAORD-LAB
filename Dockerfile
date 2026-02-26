@@ -2,8 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Required for container-level health validation in deploy workflow.
-RUN apk add --no-cache curl
+# Required for container-level health validation and build scripts.
+RUN apk add --no-cache curl bash
 
 COPY package*.json ./
 COPY prisma ./prisma
