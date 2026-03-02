@@ -1,5 +1,8 @@
 name: Deploy Dashboard
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
