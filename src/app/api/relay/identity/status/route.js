@@ -1,8 +1,10 @@
 // Public relay status proxy for portal. Returns only the public block.
 import { NextResponse } from "next/server";
 import { relayProxyFetch } from "@/lib/relayProxy";
+import { getOrCreateRequestId } from "@/lib/security/requestId";
 
 export async function GET(req) {
+  const requestId = getOrCreateRequestId(req);
   const { searchParams } = new URL(req.url);
   const sid = (searchParams.get("sid") || "").trim();
 
@@ -11,7 +13,9 @@ export async function GET(req) {
   }
 
   try {
-    const r = await relayProxyFetch(`/relay/identity/status?sid=${encodeURIComponent(sid)}`);
+    const r = await relayProxyFetch(`/relay/identity/status?sid=${encodeURIComponent(sid)}`, {
+      requestId,
+    });
     if (!r.ok || !r.json?.ok) {
       return NextResponse.json({ ok: false, code: "relay_error" }, { status: 502 });
     }

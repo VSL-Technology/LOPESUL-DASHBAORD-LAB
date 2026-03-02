@@ -5,16 +5,21 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { relayIdentityStatus } from '@/lib/relayClient';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
+import { logger } from '@/lib/logger';
+import { applySecurityHeaders } from '@/lib/security/httpGuards';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 /**
  * GET /api/frotas/[id]
  * Retorna detalhes da frota: dispositivos, vendas e status técnico.
  */
 export async function GET(_req, context) {
+  const requestId = getOrCreateRequestId(_req);
   try {
     const { id } = await context.params;
     const cleanId = String(id || '').trim();
-    if (!cleanId) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+    if (!cleanId) return json({ error: 'ID inválido' }, 400);
 
     // 1) Busca frota no banco
     const frota = await prisma.frota.findUnique({
@@ -27,7 +32,7 @@ export async function GET(_req, context) {
         },
       },
     });
-    if (!frota) return NextResponse.json({ error: 'Frota não encontrada' }, { status: 404 });
+    if (!frota) return json({ error: 'Frota não encontrada' }, 404);
 
     // 2) Vendas no período (últimos X dias)
     const days = 7;
@@ -62,7 +67,7 @@ export async function GET(_req, context) {
     const relayStatus = await (async () => {
       if (!identity) return { identity: null, ...fallbackStatus, messageCode: 'MISSING_ROUTER_IDENTITY' };
       try {
-        const st = await relayIdentityStatus(identity);
+        const st = await relayIdentityStatus(identity, { requestId });
         return { identity, ...st };
       } catch {
         return { identity, ...fallbackStatus };
@@ -78,7 +83,7 @@ export async function GET(_req, context) {
     const pingMs = null;
     const perda = null;
 
-    return NextResponse.json(
+    return json(
       {
         id: frota.id,
         nome: frota.nome ?? `Frota ${frota.id.slice(0, 4)}`,
@@ -99,12 +104,11 @@ export async function GET(_req, context) {
         vendasTotal: Number(frota._count?.vendas ?? 0),
         vendasPeriodoQtd: (vendasPeriodo ?? []).length,
         periodoDias: days,
-      },
-      { headers: { 'Cache-Control': 'no-store' } }
+      }
     );
   } catch (error) {
     console.error('GET /api/frotas/[id]', error);
-    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 });
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }
 
@@ -113,10 +117,13 @@ export async function GET(_req, context) {
  * Atualiza dados da frota (incluindo vínculo com Roteador).
  */
 export async function PUT(req, context) {
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
   try {
     const { id } = await context.params;
     const cleanId = String(id || '').trim();
-    if (!cleanId) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+    if (!cleanId) return json({ error: 'ID inválido' }, 400);
 
     const body = await req.json().catch(() => ({}));
     const {
@@ -144,7 +151,7 @@ export async function PUT(req, context) {
       },
     });
 
-    return NextResponse.json(
+    return json(
       {
         id: updated.id,
         nome: updated.nome,
@@ -155,12 +162,15 @@ export async function PUT(req, context) {
         roteadorId: updated.roteadorId,
         roteador: updated.roteador,
       },
-      { status: 200 }
+      200
     );
   } catch (error) {
-    console.error('PUT /api/frotas/[id]', error);
-    return NextResponse.json({ error: 'Erro ao atualizar frota' }, { status: 500 });
+    logger.error({ error: error?.message || error }, 'PUT /api/frotas/[id] error');
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }
 
 /* ---------- Helpers ---------- */
+function json(payload, status = 200) {
+  return applySecurityHeaders(NextResponse.json(payload, { status }), { noStore: true });
+}

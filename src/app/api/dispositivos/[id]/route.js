@@ -4,40 +4,31 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { checkInternalAuth } from '@/lib/security/internalAuth';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
+import { applySecurityHeaders } from '@/lib/security/httpGuards';
 
 // CORS preflight
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new Response(null, { status: 204 });
 }
 
 // Helper com CORS
 function json(payload, status = 200) {
-  return new Response(JSON.stringify(payload), {
+  return applySecurityHeaders(new Response(JSON.stringify(payload), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
     },
-  });
+  }), { noStore: true });
 }
 
 export async function DELETE(req, context) {
   const started = Date.now();
-  if (!checkInternalAuth(req)) {
-    logger.warn({}, '[dispositivos/delete] unauthorized');
-    recordApiMetric('dispositivos_delete', { durationMs: Date.now() - started, ok: false });
-    return json({ error: 'Unauthorized' }, 401);
-  }
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
   try {
     const { id } = await context.params;
     const cleanId = String(id || '').trim();
@@ -67,6 +58,6 @@ export async function DELETE(req, context) {
     }
     logger.error({ error: err?.message || err }, '[DELETE /api/dispositivos/:id] erro');
     recordApiMetric('dispositivos_delete', { durationMs: Date.now() - started, ok: false });
-    return json({ error: 'Erro ao remover dispositivo.' }, 500);
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }

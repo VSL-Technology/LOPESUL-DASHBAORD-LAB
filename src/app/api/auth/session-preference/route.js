@@ -1,5 +1,7 @@
 // src/app/api/auth/session-preference/route.js
 import { NextResponse } from 'next/server';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
+import { applySecurityHeaders } from '@/lib/security/httpGuards';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,23 +10,19 @@ const DUR_SET = new Set(DURATIONS);
 
 // helper p/ resposta JSON com no-store
 function json(payload, status = 200) {
-  return new Response(JSON.stringify(payload), {
+  return applySecurityHeaders(new Response(JSON.stringify(payload), {
     status,
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
     },
-  });
+  }), { noStore: true });
 }
 
-// CORS (caso o front chame de contextos variados)
 export async function OPTIONS() {
   return new Response(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Cache-Control': 'no-store',
     },
   });
@@ -36,6 +34,9 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
+  const auth = await requireMutationAuth(req, { role: 'READER' });
+  if (auth instanceof Response) return auth;
+
   try {
     const body = await req.json().catch(() => ({}));
     const raw = body?.duration;
@@ -80,6 +81,6 @@ export async function POST(req) {
 
     return res;
   } catch (e) {
-    return json({ error: 'Erro ao salvar preferência' }, 500);
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }

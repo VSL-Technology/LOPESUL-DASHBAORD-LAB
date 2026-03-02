@@ -5,7 +5,9 @@ import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics';
 import { getRequestAuth } from '@/lib/auth/context';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
 import { getMaintenanceFlag, setMaintenanceFlag } from '@/lib/config/state';
+import { applySecurityHeaders } from '@/lib/security/httpGuards';
 
 const K_SESSION = 'sessionDefault';
 const DEFAULT_SESSION_SECONDS = 60 * 60 * 4;
@@ -43,12 +45,12 @@ export async function GET() {
   try {
     const auth = await getRequestAuth();
     if (!auth.session) {
-      return NextResponse.json({ error: 'Autenticação necessária.' }, { status: 401 });
+      return json({ error: 'Autenticação necessária.' }, 401);
     }
     if (!auth.isMaster) {
-      return NextResponse.json(
+      return json(
         { error: 'Apenas operadores Master podem visualizar esta seção.' },
-        { status: 403 }
+        403
       );
     }
     const [sessionDefault, maintenance] = await Promise.all([
@@ -56,13 +58,10 @@ export async function GET() {
       getMaintenanceFlag(),
     ]);
     ok = true;
-    return NextResponse.json(
-      { sessionDefault, maintenance },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+    return json({ sessionDefault, maintenance }, 200);
   } catch (err) {
     logger.error({ error: err?.message }, '[configuracoes] Erro no GET');
-    return NextResponse.json({ error: 'Erro ao carregar configurações' }, { status: 500 });
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   } finally {
     recordApiMetric('config_get', { durationMs: Date.now() - started, ok });
   }
@@ -71,19 +70,14 @@ export async function GET() {
 export async function PUT(req) {
   const started = Date.now();
   let ok = false;
-  try {
-    const auth = await getRequestAuth();
-    if (!auth.session || !auth.isMaster) {
-      return NextResponse.json(
-        { error: 'Apenas operadores Master podem alterar esta seção.' },
-        { status: 403 }
-      );
-    }
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
 
+  try {
     const body = await req.json().catch(() => ({}));
     const parsed = UpdateSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Payload inválido' }, { status: 400 });
+      return json({ error: 'Payload inválido' }, 400);
     }
 
     const updates = parsed.data;
@@ -100,11 +94,11 @@ export async function PUT(req) {
     }
 
     if (!Object.keys(out).length) {
-      return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 });
+      return json({ error: 'Nada para atualizar' }, 400);
     }
 
     ok = true;
-    const res = NextResponse.json({ ok: true, ...out });
+    const res = json({ ok: true, ...out }, 200);
     if (out.maintenance !== undefined) {
       res.cookies.set('maintenance', out.maintenance ? '1' : '0', {
         path: '/',
@@ -114,12 +108,16 @@ export async function PUT(req) {
     return res;
   } catch (err) {
     logger.error({ error: err?.message }, '[configuracoes] Erro no PUT');
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   } finally {
     recordApiMetric('config_update', { durationMs: Date.now() - started, ok });
   }
 }
 
 export function OPTIONS() {
-  return NextResponse.json({}, { status: 204 });
+  return applySecurityHeaders(NextResponse.json({}, { status: 204 }), { noStore: true });
+}
+
+function json(payload, status = 200) {
+  return applySecurityHeaders(NextResponse.json(payload, { status }), { noStore: true });
 }

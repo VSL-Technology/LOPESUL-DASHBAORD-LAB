@@ -1,6 +1,7 @@
 // src/lib/relayClient.ts
-// Cliente fino para falar com o Relay: centraliza URL/token, evita lógica de rede no backend.
+// Cliente fino para falar com o Relay usando assinatura HMAC (relayFetchSigned).
 import 'server-only';
+import { relayFetchSigned } from '@/lib/relayFetchSigned';
 
 export type RelayStatus = {
   state: 'OK' | 'DEGRADED' | 'COOLDOWN' | 'FAILED';
@@ -33,6 +34,7 @@ type RelayResponse = {
 };
 
 const DEFAULT_TIMEOUT = 6000;
+const TRANSIENT = new Set([502, 503, 504]);
 
 function parseList(envValue?: string) {
   return (envValue || '')
@@ -42,7 +44,6 @@ function parseList(envValue?: string) {
 }
 
 function sanitizeAllowedHosts(envValue?: string): string[] {
-  // Permite apenas hostnames simples e IPs literais (v4/v6) para os hosts extras configurados via env.
   const hostPattern = /^(?:[a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+$|^(?:\d{1,3}\.){3}\d{1,3}$|^\[[0-9a-fA-F:]+\]$/;
   return (envValue || '')
     .split(',')
@@ -107,65 +108,87 @@ function relayBaseUrl() {
   );
 }
 
-function relayHeaders(extra?: Record<string, string>) {
-  const token = process.env.RELAY_TOKEN || process.env.RELAY_API_TOKEN;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(extra || {}),
-  };
+function relayToken() {
+  return process.env.RELAY_TOKEN || process.env.RELAY_API_TOKEN || '';
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+function relaySecret() {
+  return process.env.RELAY_API_SECRET || '';
+}
+
+function normalizePath(path: string) {
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
+function parseBody(body?: unknown) {
+  if (body === undefined || body === null) return undefined;
+  if (typeof body !== 'string') return body;
+  const trimmed = body.trim();
+  if (!trimmed) return '';
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(id);
+    return JSON.parse(trimmed);
+  } catch {
+    return body;
   }
 }
 
-async function relayFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function relaySignedCall<T>(path: string, init?: RequestInit & { requestId?: string }): Promise<T> {
   const base = relayBaseUrl();
-  if (!base) throw new Error('Missing RELAY_BASE_URL/RELAY_URL');
+  const token = relayToken();
+  const apiSecret = relaySecret();
 
-  const url = `${base}${path.startsWith('/') ? '' : '/'}${path}`;
-  const res = await fetch(url, {
-    ...init,
-    headers: relayHeaders(init?.headers as Record<string, string> | undefined),
+  if (!base) throw new Error('Missing RELAY_BASE_URL/RELAY_URL');
+  if (!token) throw new Error('Missing RELAY_TOKEN/RELAY_API_TOKEN');
+  if (!apiSecret) throw new Error('Missing RELAY_API_SECRET');
+
+  const method = String(init?.method || 'GET').toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE';
+  const headers = (init?.headers || {}) as Record<string, string>;
+
+  const out = await relayFetchSigned<T>({
+    method,
+    originalUrl: normalizePath(path),
+    body: parseBody(init?.body),
+    baseUrl: base,
+    token,
+    apiSecret,
+    headers,
+    timeoutMs: DEFAULT_TIMEOUT,
+    requestId: (init as any)?.requestId,
   });
 
-  const text = await res.text().catch(() => null);
-  const json = text ? (() => { try { return JSON.parse(text); } catch { return null; } })() : null;
-
-  if (!res.ok) {
-    const err = new Error((json && (json.error || json.message)) || `Relay HTTP ${res.status}`);
-    (err as any).status = res.status;
-    (err as any).detail = json;
-    throw err;
-  }
-
-  return json as T;
+  return out.data as T;
 }
 
 // STATUS (fonte da verdade do roteador)
-export async function relayIdentityStatus(identity: string): Promise<RelayStatus> {
-  return relayFetch<RelayStatus>(`/relay/identity/status?identity=${encodeURIComponent(identity)}`);
-}
-
-// AÇÕES (declarativas)
-export async function relayAuthorize(ctx: RelayActionContext): Promise<RelayActionResult> {
-  return relayFetch<RelayActionResult>(`/relay/hotspot/authorize`, {
-    method: 'POST',
-    body: JSON.stringify(ctx),
+export async function relayIdentityStatus(
+  identity: string,
+  opts?: { requestId?: string }
+): Promise<RelayStatus> {
+  return relaySignedCall<RelayStatus>(`/relay/identity/status?identity=${encodeURIComponent(identity)}`, {
+    requestId: opts?.requestId,
   });
 }
 
-export async function relayRevoke(ctx: RelayActionContext): Promise<RelayActionResult> {
-  return relayFetch<RelayActionResult>(`/relay/hotspot/revoke`, {
+// AÇÕES (declarativas)
+export async function relayAuthorize(
+  ctx: RelayActionContext,
+  opts?: { requestId?: string }
+): Promise<RelayActionResult> {
+  return relaySignedCall<RelayActionResult>(`/relay/hotspot/authorize`, {
     method: 'POST',
     body: JSON.stringify(ctx),
+    requestId: opts?.requestId,
+  });
+}
+
+export async function relayRevoke(
+  ctx: RelayActionContext,
+  opts?: { requestId?: string }
+): Promise<RelayActionResult> {
+  return relaySignedCall<RelayActionResult>(`/relay/hotspot/revoke`, {
+    method: 'POST',
+    body: JSON.stringify(ctx),
+    requestId: opts?.requestId,
   });
 }
 
@@ -173,59 +196,84 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// Compat: mantém callRelay para os usos existentes, mas centraliza URL/token aqui.
+// Compat: mantém callRelay para os usos existentes, agora sempre assinado.
 export async function callRelay(
   path: string,
   body: any,
-  opts?: { method?: string; timeoutMs?: number; retries?: number; headers?: Record<string, string> }
+  opts?: {
+    method?: string;
+    timeoutMs?: number;
+    retries?: number;
+    headers?: Record<string, string>;
+    requestId?: string;
+  }
 ): Promise<RelayResponse> {
-  const method = opts?.method || 'POST';
+  const method = (opts?.method || 'POST').toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE';
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT;
   const retries = typeof opts?.retries === 'number' ? opts.retries : 1;
 
   const base = relayBaseUrl();
+  const token = relayToken();
+  const apiSecret = relaySecret();
+
   if (!base) {
     return { ok: false, status: 0, error: 'RELAY_URL_NAO_CONFIGURADA' };
   }
-
-  const url = `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+  if (!token) {
+    return { ok: false, status: 0, error: 'RELAY_TOKEN_NAO_CONFIGURADO' };
+  }
+  if (!apiSecret) {
+    return { ok: false, status: 0, error: 'RELAY_API_SECRET_NAO_CONFIGURADO' };
+  }
 
   let attempt = 0;
   let lastError: string | null = null;
 
   while (attempt <= retries) {
-    attempt++;
+    attempt += 1;
+
     try {
-      const res = await fetchWithTimeout(
-        url,
-        {
-          method,
-          headers: relayHeaders({
-            ...(opts?.headers || {}),
-          }),
-          body: body !== undefined ? JSON.stringify(body) : undefined,
-        },
-        timeoutMs
-      );
-
-      const text = await res.text().catch(() => null);
-      let json: any = null;
-      try { json = text ? JSON.parse(text) : null; } catch { json = null; }
-
-      const remoteError = (json && (json.error || json.message)) || text || `status_${res.status}`;
+      const out = await relayFetchSigned({
+        method,
+        originalUrl: normalizePath(path),
+        body,
+        headers: opts?.headers || {},
+        timeoutMs,
+        baseUrl: base,
+        token,
+        apiSecret,
+        requestId: opts?.requestId,
+      });
 
       return {
-        ok: res.ok,
-        status: res.status,
-        json,
-        text,
-        error: res.ok ? null : remoteError,
+        ok: true,
+        status: out.status,
+        json: out.data,
+        text: out.text,
+        error: null,
       };
     } catch (err: any) {
-      const isAbort = err && err.name === 'AbortError';
-      lastError = isAbort ? 'TIMEOUT' : (err && err.message ? err.message : String(err));
-      if (attempt > retries) break;
-      await sleep(200 * attempt);
+      const status = Number(err?.status || 0);
+      const json = err?.data || null;
+      const text = typeof json === 'string' ? json : null;
+      const remoteError =
+        (json && (json.error || json.message)) || text || (err?.message ? String(err.message) : `status_${status || 0}`);
+
+      lastError = remoteError;
+
+      const retryable = status === 0 || TRANSIENT.has(status) || err?.name === 'AbortError';
+      if (attempt <= retries && retryable) {
+        await sleep(200 * attempt);
+        continue;
+      }
+
+      return {
+        ok: false,
+        status,
+        json,
+        text,
+        error: remoteError,
+      };
     }
   }
 

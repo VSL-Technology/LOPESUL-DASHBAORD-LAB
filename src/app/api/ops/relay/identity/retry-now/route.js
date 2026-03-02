@@ -1,8 +1,10 @@
 // Ops endpoint: força retry-now no Relay. Admin apenas.
-import { NextResponse } from "next/server";
-import { getRequestAuth } from "@/lib/auth/context";
-import { relayProxyFetch } from "@/lib/relayProxy";
-import { logger } from "@/lib/logger";
+import { ok, fail } from '@/lib/api/response';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
+import { logger } from '@/lib/logger';
+import { relayProxyFetch } from '@/lib/relayProxy';
+import { rateLimitOrThrow } from '@/lib/security/rateLimit';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 const RATE_LIMIT_WINDOW_MS = 30_000;
 const RATE_LIMIT_MAX = 5;
@@ -21,50 +23,61 @@ function rateLimit(key) {
 }
 
 export async function POST(req) {
-  const auth = await getRequestAuth();
-  if (!auth?.session || !auth.isMaster) {
-    return NextResponse.json({ ok: false, code: "forbidden" }, { status: 403 });
-  }
+  const requestId = getOrCreateRequestId(req);
+  const auth = await requireMutationAuth(req, { role: 'MASTER', requestId });
+  if (auth instanceof Response) return auth;
 
-  const body = await req.json().catch(() => ({}));
-  const sid = (body?.sid || "").trim();
-
-  if (!sid) {
-    return NextResponse.json({ ok: false, code: "missing_sid" }, { status: 400 });
-  }
-
-  const key = auth.session?.sub || req.headers.get("x-forwarded-for") || "anon";
-  if (!rateLimit(`ops-retry:${key}`)) {
-    return NextResponse.json({ ok: false, code: "rate_limited" }, { status: 429 });
-  }
-
-  const RELAY_INTERNAL_TOKEN = process.env.RELAY_INTERNAL_TOKEN;
-  if (!RELAY_INTERNAL_TOKEN) {
-    return NextResponse.json({ ok: false, code: "relay_not_configured" }, { status: 500 });
-  }
-
-  const r = await relayProxyFetch(`/relay/identity/retry-now`, {
-    method: "POST",
-    headers: {
-      "X-Relay-Internal": RELAY_INTERNAL_TOKEN,
-    },
-    body: { sid },
+  const limited = await rateLimitOrThrow(req, {
+    name: 'ops_relay_identity_retry_now',
+    limit: 10,
+    windowMs: 60_000,
+    requestId,
   });
+  if (limited) return limited;
 
-  logger.info(
-    {
-      userId: auth.session?.sub || null,
-      sid,
-      at: new Date().toISOString(),
-      relayStatus: r.status,
-      relayOk: r.ok,
-    },
-    "[ops/retry-now]"
-  );
+  try {
+    const body = await req.json().catch(() => ({}));
+    const sid = String(body?.sid || '').trim();
+    if (!sid) return fail('BAD_REQUEST', { requestId });
 
-  if (!r.ok || !r.json?.ok) {
-    return NextResponse.json({ ok: false, code: "relay_error" }, { status: 502 });
+    const key = auth.session?.sub || req.headers.get('x-forwarded-for') || 'anon';
+    if (!rateLimit(`ops-retry:${key}`)) {
+      return fail('RATE_LIMITED', { requestId, status: 429 });
+    }
+
+    const relayInternalToken = process.env.RELAY_INTERNAL_TOKEN;
+    if (!relayInternalToken) {
+      return fail('INTERNAL_ERROR', { requestId, status: 500 });
+    }
+
+    const r = await relayProxyFetch('/relay/identity/retry-now', {
+      method: 'POST',
+      headers: {
+        'X-Relay-Internal': relayInternalToken,
+      },
+      body: { sid },
+      requestId,
+    });
+
+    logger.info(
+      {
+        route: 'api_ops_relay_identity_retry_now',
+        requestId,
+        userId: auth.session?.sub || null,
+        sid,
+        relayStatus: r.status,
+        relayOk: r.ok,
+      },
+      '[ops/retry-now]'
+    );
+
+    if (!r.ok || !r.json?.ok) {
+      return fail('UPSTREAM_RELAY_DOWN', { requestId, status: 502 });
+    }
+
+    return ok(r.json, { requestId });
+  } catch (err) {
+    logger.error({ err, requestId, route: 'api_ops_relay_identity_retry_now' }, '[ops/retry-now] unexpected error');
+    return fail('INTERNAL_ERROR', { requestId });
   }
-
-  return NextResponse.json(r.json, { status: 200 });
 }

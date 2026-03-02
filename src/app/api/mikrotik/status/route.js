@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { relayIdentityStatus } from '@/lib/relayClient';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 const RELAY_FALLBACK = {
   state: 'DEGRADED',
@@ -13,8 +14,9 @@ const RELAY_FALLBACK = {
   messageCode: 'RELAY_UNAVAILABLE',
 };
 
-export async function GET() {
+export async function GET(req) {
   const started = Date.now();
+  const requestId = getOrCreateRequestId(req);
   const identity =
     process.env.MIKROTIK_IDENTITY ||
     process.env.MIKROTIK_HOST ||
@@ -22,7 +24,7 @@ export async function GET() {
     'default-router';
 
   try {
-    const status = await relayIdentityStatus(identity);
+    const status = await relayIdentityStatus(identity, { requestId });
 
     const body = {
       ok: status.state === 'OK',

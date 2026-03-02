@@ -1,6 +1,6 @@
 // src/lib/relayHotspot.js
 import crypto from "crypto";
-import { relayFetch } from "./relayFetch";
+import { relayFetchSigned } from "./relayFetchSigned";
 
 function derivePassword(token) {
   const secret = process.env.HOTSPOT_PASS_SECRET || "dev-secret";
@@ -43,18 +43,29 @@ export async function relayEnsureHotspotUser({ identity, token, minutes }) {
   const username = tokenToUsername(token);
   const password = derivePassword(token);
 
-  if (process.env.RELAY_DISABLE === "1" || !process.env.RELAY_URL) {
+  const relayBaseUrl =
+    process.env.RELAY_BASE_URL || process.env.RELAY_URL || process.env.RELAY_BASE || "";
+  const relayToken = process.env.RELAY_TOKEN || process.env.RELAY_API_TOKEN || "";
+  const relaySecret = process.env.RELAY_API_SECRET || "";
+
+  if (process.env.RELAY_DISABLE === "1" || !relayBaseUrl) {
     return { username, password, mocked: true };
   }
 
   try {
-    const out = await relayFetch("/relay/hotspot/ensure-user", {
-      identity,
-      token,
-      minutes,
+    const out = await relayFetchSigned({
+      method: "POST",
+      originalUrl: "/relay/hotspot/ensure-user",
+      body: { identity, token, minutes },
+      baseUrl: relayBaseUrl,
+      token: relayToken,
+      apiSecret: relaySecret,
     });
-    return out;
+    return out?.data || {};
   } catch (err) {
+    if (String(err?.message || "").includes("Missing RELAY_API_SECRET")) {
+      throw err;
+    }
     // fallback resiliente: evita erro 500 no backend e mantém fluxo
     // CRITICAL: relay connectivity issue - this masks real infrastructure problems
     console.error("[relayEnsureHotspotUser] RELAY CONNECTIVITY FAILURE - fallback mock:", err?.message || err);

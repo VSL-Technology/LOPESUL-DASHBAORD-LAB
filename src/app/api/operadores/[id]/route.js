@@ -7,14 +7,17 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { getRequestAuth } from '@/lib/auth/context';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
+import { logger } from '@/lib/logger';
+import { applySecurityHeaders } from '@/lib/security/httpGuards';
 
 const RoleSchema = z.enum(['MASTER', 'READER']);
 
 function json(payload, status = 200) {
-  return new NextResponse(JSON.stringify(payload), {
+  return applySecurityHeaders(new NextResponse(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
-  });
+  }), { noStore: true });
 }
 
 async function ensureMaster() {
@@ -48,8 +51,10 @@ export async function GET(_req, context) {
 }
 
 export async function PUT(req, context) {
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
   try {
-    await ensureMaster();
     const { id } = await context.params;
     const cleanId = String(id || '').trim();
     if (!cleanId) return json({ error: 'ID inválido' }, 400);
@@ -85,15 +90,16 @@ export async function PUT(req, context) {
 
     return json(updated, 200);
   } catch (err) {
-    if (err instanceof Response) return err;
-    console.error('PUT /api/operadores/[id] =>', err);
-    return json({ error: 'Erro ao atualizar operador' }, 500);
+    logger.error({ error: err?.message || err }, 'PUT /api/operadores/[id] error');
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }
 
-export async function DELETE(_req, context) {
+export async function DELETE(req, context) {
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
   try {
-    await ensureMaster();
     const { id } = await context.params;
     const cleanId = String(id || '').trim();
     if (!cleanId) return json({ error: 'ID inválido' }, 400);
@@ -101,8 +107,7 @@ export async function DELETE(_req, context) {
     await prisma.operador.delete({ where: { id: cleanId } });
     return json({ ok: true, id: cleanId }, 200);
   } catch (err) {
-    if (err instanceof Response) return err;
-    console.error('DELETE /api/operadores/[id] =>', err);
-    return json({ error: 'Erro ao excluir operador' }, 500);
+    logger.error({ error: err?.message || err }, 'DELETE /api/operadores/[id] error');
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }

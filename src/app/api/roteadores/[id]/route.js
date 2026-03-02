@@ -6,14 +6,16 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { getRequestAuth } from '@/lib/auth/context';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
 import { logger } from '@/lib/logger';
 import { syncWireguardPeer } from '@/lib/wireguard';
+import { applySecurityHeaders } from '@/lib/security/httpGuards';
 
 function json(payload, status = 200) {
-  return new NextResponse(JSON.stringify(payload), {
+  return applySecurityHeaders(new NextResponse(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
-  });
+  }), { noStore: true });
 }
 
 async function ensureMaster() {
@@ -84,8 +86,10 @@ export async function GET(_req, context) {
 }
 
 export async function PUT(req, context) {
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
   try {
-    await ensureMaster();
     const { id } = await context.params;
     const cleanId = String(id || '').trim();
     if (!cleanId) return json({ error: 'ID inválido' }, 400);
@@ -184,14 +188,16 @@ export async function PUT(req, context) {
 
     return json(updated, 200);
   } catch (err) {
-    console.error('PUT /api/roteadores/[id] =>', err);
-    return json({ error: 'Erro ao atualizar roteador' }, 500);
+    logger.error({ error: err?.message || err }, 'PUT /api/roteadores/[id] error');
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }
 
-export async function DELETE(_req, context) {
+export async function DELETE(req, context) {
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
   try {
-    await ensureMaster();
     const { id } = await context.params;
     const cleanId = String(id || '').trim();
     if (!cleanId) return json({ error: 'ID inválido' }, 400);
@@ -213,7 +219,7 @@ export async function DELETE(_req, context) {
     await prisma.roteador.delete({ where: { id: cleanId } });
     return json({ ok: true, id: cleanId }, 200);
   } catch (err) {
-    console.error('DELETE /api/roteadores/[id] =>', err);
-    return json({ error: 'Erro ao remover roteador' }, 500);
+    logger.error({ error: err?.message || err }, 'DELETE /api/roteadores/[id] error');
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }

@@ -1,6 +1,6 @@
 // src/lib/mikrotik.js
 import MikroNode from "mikronode-ng2";
-import { relayFetch } from "./relay";
+import { relayFetchSigned } from "./relayFetchSigned";
 
 function resolveRouterConfig(router = {}) {
   const host = router.host || process.env.MIKROTIK_HOST;
@@ -129,14 +129,18 @@ export async function liberarAcesso({ ip, mac, orderId, comment, router, pedidoI
       // Executa cada comando via modo inteligente
       for (const cmd of sentences) {
         try {
-          const response = await relayFetch(endpoint, {
+          const response = await relayFetchSigned({
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...body, command: cmd }),
-          });
+            originalUrl: endpoint,
+            body: { ...body, command: cmd },
+          }).catch((err) => ({
+            ok: false,
+            status: err?.status || 0,
+            data: err?.data || { error: err?.message || "relay_error" },
+          }));
 
-          const result = await response.json().catch(() => ({}));
-          if (!result.ok) {
+          const result = response?.data || {};
+          if (!response?.ok || !result.ok) {
             // Se database_not_available, tenta modo direto
             if (result.error === 'database_not_available') {
               console.log("[MIKROTIK] Relay sem DB, usando modo direto");
@@ -175,20 +179,24 @@ export async function liberarAcesso({ ip, mac, orderId, comment, router, pedidoI
       for (const cmd of sentences) {
         console.log("[MIKROTIK] Executando via relay direto:", cmd);
         try {
-          const response = await relayFetch("/relay/exec", {
+          const response = await relayFetchSigned({
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+            originalUrl: "/relay/exec",
+            body: {
               host: cfg.host,
               user: cfg.user,
               pass: cfg.pass,
               port: cfg.port,
               command: cmd,
-            }),
-          });
+            },
+          }).catch((err) => ({
+            ok: false,
+            status: err?.status || 0,
+            data: err?.data || { error: err?.message || "relay_error" },
+          }));
 
-          const result = await response.json().catch(() => ({}));
-          if (!result.ok) {
+          const result = response?.data || {};
+          if (!response?.ok || !result.ok) {
             console.warn("[MIKROTIK] Comando falhou via relay direto:", cmd, result.error);
           }
         } catch (cmdErr) {

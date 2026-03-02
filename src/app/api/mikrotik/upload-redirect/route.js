@@ -2,20 +2,38 @@
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
-import { relayFetch } from '@/lib/relay';
+import { relayFetchSigned } from '@/lib/relayFetchSigned';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
+import { applySecurityHeaders } from '@/lib/security/httpGuards';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
   const started = Date.now();
+  const requestId = getOrCreateRequestId(req);
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
   try {
-    const RELAY_URL = process.env.RELAY_URL || 'http://localhost:3001';
-    const RELAY_TOKEN = process.env.RELAY_TOKEN;
+    const RELAY_URL = process.env.RELAY_BASE_URL || process.env.RELAY_URL || process.env.RELAY_BASE || '';
+    const RELAY_TOKEN = process.env.RELAY_TOKEN || process.env.RELAY_API_TOKEN;
+    const RELAY_API_SECRET = process.env.RELAY_API_SECRET;
 
     if (!RELAY_TOKEN) {
       logger.error('[Upload Redirect] RELAY_TOKEN missing');
       recordApiMetric('mikrotik_upload_redirect', { durationMs: Date.now() - started, ok: false });
-      return NextResponse.json({ ok: false, error: 'RELAY_TOKEN not configured' }, { status: 500 });
+      return json({ ok: false, error: 'RELAY_TOKEN not configured' }, 500);
+    }
+    if (!RELAY_API_SECRET) {
+      logger.error('[Upload Redirect] RELAY_API_SECRET missing');
+      recordApiMetric('mikrotik_upload_redirect', { durationMs: Date.now() - started, ok: false });
+      return json({ ok: false, error: 'RELAY_API_SECRET not configured' }, 500);
+    }
+    if (!RELAY_URL) {
+      logger.error('[Upload Redirect] RELAY_URL/RELAY_BASE_URL missing');
+      recordApiMetric('mikrotik_upload_redirect', { durationMs: Date.now() - started, ok: false });
+      return json({ ok: false, error: 'RELAY_URL not configured' }, 500);
     }
 
     // HTML do redirect com variáveis MikroTik
@@ -48,26 +66,31 @@ Redirecionando para o portal de pagamento...<br>
 
     logger.info('[Upload Redirect] Enviando arquivo via Relay endpoint declarativo...');
 
-    const response = await relayFetch('/relay/hotspot/upload-redirect', {
+    const response = await relayFetchSigned({
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${RELAY_TOKEN}`,
-      },
-      body: JSON.stringify({
+      originalUrl: '/relay/hotspot/upload-redirect',
+      baseUrl: RELAY_URL,
+      token: RELAY_TOKEN,
+      apiSecret: RELAY_API_SECRET,
+      headers: { 'x-request-id': requestId },
+      body: {
         htmlBase64: base64Content,
         path: 'hotspot4/redirect.html',
-      }),
+      },
     }).catch((err) => {
       logger.warn({ err: err?.message || err }, '[Upload Redirect] Relay upload failed');
-      return null;
+      return {
+        ok: false,
+        status: err?.status || 0,
+        data: err?.data || null,
+      };
     });
 
-    const result = await response?.json().catch(() => null);
+    const result = response?.data || null;
     logger.info({ result }, '[Upload Redirect] Resposta do relay');
 
     if (!response || !response.ok || !result?.ok) {
-      return NextResponse.json({
+      return json({
         ok: false,
         error: 'Upload via Relay falhou. Será necessário upload manual.',
         details: result || { message: 'relay_unreachable' },
@@ -77,7 +100,7 @@ Redirecionando para o portal de pagamento...<br>
     }
 
     recordApiMetric('mikrotik_upload_redirect', { durationMs: Date.now() - started, ok: true });
-    return NextResponse.json({
+    return json({
       ok: true,
       message: 'Arquivo redirect.html enviado para o MikroTik com sucesso!',
       path: 'hotspot4/redirect.html',
@@ -87,10 +110,7 @@ Redirecionando para o portal de pagamento...<br>
   } catch (error) {
     logger.error({ error: error?.message || error }, '[Upload Redirect] Erro');
     recordApiMetric('mikrotik_upload_redirect', { durationMs: Date.now() - started, ok: false });
-    return NextResponse.json({
-      ok: false,
-      error: error.message,
-    }, { status: 500 });
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }
 
@@ -126,4 +146,8 @@ Redirecionando para o portal de pagamento...<br>
       'Content-Disposition': 'attachment; filename="redirect.html"',
     },
   });
+}
+
+function json(payload, status = 200) {
+  return applySecurityHeaders(NextResponse.json(payload, { status }), { noStore: true });
 }

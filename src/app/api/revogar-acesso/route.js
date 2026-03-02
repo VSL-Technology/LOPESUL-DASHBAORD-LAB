@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import mikrotik from '@/lib/mikrotik';
-import { checkInternalAuth } from '@/lib/security/internalAuth';
+import { requireAuth } from '@/lib/auth/requireAuth';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
 const { revogarCliente } = mikrotik;
@@ -25,21 +25,13 @@ function corsJson(payload, status = 200) {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
     },
   });
 }
 
 /* Preflight CORS */
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new Response(null, { status: 204 });
 }
 
 const BodySchema = z.object({
@@ -56,10 +48,14 @@ const BodySchema = z.object({
 /* ===== main ===== */
 export async function POST(req) {
   const started = Date.now();
-  if (!checkInternalAuth(req)) {
-    logger.warn({}, '[revogar-acesso] Unauthorized attempt');
+  const auth = await requireAuth(req, { role: 'MASTER' });
+  if (auth.error) {
+    logger.warn({ status: auth.error }, '[revogar-acesso] unauthorized attempt');
     recordApiMetric('revogar_acesso', { durationMs: Date.now() - started, ok: false });
-    return corsJson({ ok: false, error: 'Unauthorized' }, 401);
+    return Response.json(
+      { error: auth.error === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED' },
+      { status: auth.error }
+    );
   }
 
   try {
@@ -174,6 +170,6 @@ export async function POST(req) {
   } catch (e) {
     logger.error({ error: e?.message || e }, 'POST /api/revogar-acesso error');
     recordApiMetric('revogar_acesso', { durationMs: Date.now() - started, ok: false });
-    return corsJson({ ok: false, error: 'Falha ao revogar' }, 500);
+    return corsJson({ error: 'INTERNAL_ERROR' }, 500);
   }
 }

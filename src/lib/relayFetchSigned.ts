@@ -9,6 +9,7 @@ type RelayOpts = {
   apiSecret?: string; // ex.: process.env.RELAY_API_SECRET
   baseUrl?: string; // ex.: https://relay.lopesuldashboardwifi.com
   headers?: Record<string, string>;
+  requestId?: string;
   timeoutMs?: number;
 };
 
@@ -47,6 +48,27 @@ function resolveApiSecret(apiSecret?: string) {
   return apiSecret || process.env.RELAY_API_SECRET || '';
 }
 
+function resolveRequestId(
+  requestId?: string,
+  headers?: Record<string, string>
+) {
+  if (requestId && requestId.trim()) return requestId.trim();
+  if (!headers) return crypto.randomUUID();
+
+  const key = Object.keys(headers).find(
+    (k) => k.toLowerCase() === 'x-request-id'
+  );
+  const value = key ? String(headers[key] || '').trim() : '';
+  return value || crypto.randomUUID();
+}
+
+function configError(message: string, code: string) {
+  const err = new Error(message) as Error & { status?: number; data?: Record<string, string> };
+  err.status = 500;
+  err.data = { error: code };
+  return err;
+}
+
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -65,10 +87,11 @@ export async function relayFetchSigned<T = any>(opts: RelayOpts): Promise<RelayS
   const baseUrl = resolveBaseUrl(opts.baseUrl);
   const apiSecret = resolveApiSecret(opts.apiSecret);
   const token = opts.token || process.env.RELAY_TOKEN || '';
+  const requestId = resolveRequestId(opts.requestId, opts.headers);
 
-  if (!baseUrl) throw new Error('Missing RELAY_BASE_URL/RELAY_URL/RELAY_BASE');
-  if (!apiSecret) throw new Error('Missing RELAY_API_SECRET');
-  if (!token) throw new Error('Missing relay token for request');
+  if (!baseUrl) throw configError('Missing RELAY_BASE_URL/RELAY_URL/RELAY_BASE', 'relay_base_url_missing');
+  if (!apiSecret) throw configError('Missing RELAY_API_SECRET', 'relay_api_secret_missing');
+  if (!token) throw configError('Missing relay token for request', 'relay_token_missing');
 
   const ts = String(Date.now()); // ms
   const nonce = makeNonce();
@@ -78,6 +101,9 @@ export async function relayFetchSigned<T = any>(opts: RelayOpts): Promise<RelayS
   const sigHex = crypto.createHmac('sha256', apiSecret).update(base).digest('hex');
 
   const url = `${baseUrl}${opts.originalUrl}`;
+  const extraHeaders = { ...(opts.headers || {}) };
+  delete (extraHeaders as Record<string, string>)['x-request-id'];
+  delete (extraHeaders as Record<string, string>)['X-Request-Id'];
 
   const res = await fetchWithTimeout(
     url,
@@ -89,7 +115,8 @@ export async function relayFetchSigned<T = any>(opts: RelayOpts): Promise<RelayS
         'x-relay-ts': ts,
         'x-relay-nonce': nonce,
         'x-relay-signature': sigHex,
-        ...(opts.headers || {}),
+        'x-request-id': requestId,
+        ...extraHeaders,
       },
       body: rawBody ? rawBody : undefined,
     },

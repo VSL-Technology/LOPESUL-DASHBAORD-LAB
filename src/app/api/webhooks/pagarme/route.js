@@ -1,5 +1,6 @@
 // src/app/api/webhook/pagarme/route.js
-import { NextResponse } from "next/server";
+import crypto from "node:crypto";
+import { ok, fail } from '@/lib/api/response';
 import prisma from "@/lib/prisma";
 // Backend must NOT call Mikrotik directly. Relay is the single actor that
 // performs operational actions. We only mark orders as paid and emit a
@@ -10,6 +11,7 @@ import { getClientIp } from "@/lib/security/requestUtils";
 import { enforceRateLimit } from "@/lib/security/rateLimiter";
 import { verifyPagarmeSignature } from "@/lib/security/pagarmeWebhook";
 import { auditLog } from '@/lib/auditLogger';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,6 +94,23 @@ function extractBasics(evt) {
     rawOrder: order,
     rawCharge: charge,
   };
+}
+
+function extractEventId(evt, basics) {
+  return (
+    evt?.data?.id ||
+    evt?.event?.id ||
+    evt?.id ||
+    evt?.hook_id ||
+    evt?.webhook_id ||
+    basics?.chargeId ||
+    basics?.orderCode ||
+    null
+  );
+}
+
+function hashPayload(rawBody) {
+  return crypto.createHash("sha256").update(String(rawBody || "")).digest("hex");
 }
 
 /** Marca pedido como pago e libera no Mikrotik correto (multi-roteador) */
@@ -223,7 +242,7 @@ async function markPaidAndRelease(orderCode, ctx = {}) {
 }
 
 export async function POST(req) {
-  const requestId = req.headers.get('x-request-id') || '';
+  const requestId = getOrCreateRequestId(req);
   const clientIp = getClientIp(req);
   const rateOk = enforceRateLimit(`webhook:${clientIp}`, {
     windowMs: 60_000,
@@ -232,7 +251,7 @@ export async function POST(req) {
 
   if (!rateOk) {
     logger.warn({ clientIp }, "[WEBHOOK] Rate limit estourado");
-    return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
+    return fail('RATE_LIMITED', { requestId, status: 429 });
   }
 
   try {
@@ -251,7 +270,7 @@ export async function POST(req) {
         result: 'BLOCKED',
         metadata: { reason: 'INVALID_SIGNATURE' },
       });
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      return fail('UNAUTHORIZED', { requestId, status: 401 });
     }
 
     let evt;
@@ -259,7 +278,7 @@ export async function POST(req) {
       evt = JSON.parse(rawBody);
     } catch (err) {
       logger.error({ error: err?.message || err }, "[WEBHOOK] Body JSON inválido");
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return fail('BAD_REQUEST', { requestId, status: 400 });
     }
 
     const hookId =
@@ -271,197 +290,235 @@ export async function POST(req) {
       evt?.data?.code ||
       null;
 
-    if (!hookId) {
-      logger.warn({}, "[WEBHOOK] Hook ID ausente no payload");
-      return NextResponse.json({ error: "Missing hook id" }, { status: 400 });
-    }
-
-    const existingLog = await prisma.webhookLog
-      .findUnique({ where: { id: hookId } })
-      .catch(() => null);
-    if (existingLog) {
-      logger.info({ hookId }, "[WEBHOOK] Evento duplicado ignorado");
-      await auditLog({
-        requestId,
-        event: 'PAYMENT_WEBHOOK',
-        entityId: hookId,
-        ip: clientIp,
-        result: 'BLOCKED',
-        metadata: { reason: 'DUPLICATE' },
-      });
-      return NextResponse.json({ ok: true, duplicate: true });
-    }
-
     const basics = extractBasics(evt);
+    const eventId = extractEventId(evt, basics);
+    if (!eventId) {
+      logger.warn({}, "[WEBHOOK] Event ID ausente no payload");
+      return fail('BAD_REQUEST', { requestId, status: 400 });
+    }
+    const eventType = basics.type || null;
+    const uniqueKey = `pagarme:${eventId}`;
+    const payloadHash = hashPayload(rawBody);
+
+    let webhookEvent;
+    try {
+      webhookEvent = await prisma.webhookEvent.create({
+        data: {
+          provider: "pagarme",
+          eventId: String(eventId),
+          eventType,
+          uniqueKey,
+          payloadHash,
+        },
+      });
+    } catch (createErr) {
+      if (createErr?.code === "P2002") {
+        logger.info({ uniqueKey }, "[WEBHOOK] Evento duplicado ignorado (WebhookEvent)");
+        return ok({ duplicate: true }, { requestId, status: 200 });
+      }
+      logger.error(
+        { uniqueKey, error: createErr?.message || createErr },
+        "[WEBHOOK] Falha ao registrar idempotência"
+      );
+      return fail('INTERNAL_ERROR', { requestId, status: 500 });
+    }
+
     logger.info(
-      { hookId, type: basics.type, orderCode: basics.orderCode, chargeId: basics.chargeId },
+      {
+        hookId,
+        eventId,
+        type: basics.type,
+        orderCode: basics.orderCode,
+        chargeId: basics.chargeId,
+      },
       "[WEBHOOK] Evento recebido"
     );
 
-    // Audit received webhook (minimal metadata)
     try {
-      await auditLog({
-        requestId,
-        event: 'PIX_WEBHOOK_RECEIVED',
-        entityId: hookId || basics.chargeId || basics.orderCode || null,
-        ip: clientIp,
-        result: 'RECEIVED',
-        metadata: {
-          type: basics.type,
-          orderCode: basics.orderCode,
-          chargeId: basics.chargeId,
-        },
-      });
-    } catch (e) {
-      // degrade gracefully
-    }
-
-    const mapped = mapStatus({
-      type: basics.type,
-      orderStatus: basics.orderStatus,
-      chargeStatus: basics.chargeStatus,
-    });
-
-    try {
-      await prisma.webhookLog.create({
-        data: {
-          id: hookId,
-          event: basics.type,
-          orderCode: basics.orderCode,
-          payload: evt,
-        },
-      });
-    } catch (logErr) {
-      if (logErr?.code === "P2002") {
-        logger.info({ hookId }, "[WEBHOOK] Evento duplicado (log)");
-        return NextResponse.json({ ok: true, duplicate: true });
-      }
-      logger.error({ hookId, error: logErr?.message || logErr }, "[WEBHOOK] Erro ao salvar log");
-      return NextResponse.json({ error: "Log failure" }, { status: 500 });
-    }
-
-    if (basics.orderCode && mapped) {
-      let pedidoExistente = await prisma.pedido.findFirst({
-        where: { code: basics.orderCode },
-      });
-
-      if (!pedidoExistente) {
-        pedidoExistente = await prisma.pedido.findFirst({
-          where: {
-            metadata: {
-              path: ["pagarmeOrderCode"],
-              equals: basics.orderCode,
-            },
+      // Audit received webhook (minimal metadata)
+      try {
+        await auditLog({
+          requestId,
+          event: 'PIX_WEBHOOK_RECEIVED',
+          entityId: hookId || basics.chargeId || basics.orderCode || eventId || null,
+          ip: clientIp,
+          result: 'RECEIVED',
+          metadata: {
+            type: basics.type,
+            orderCode: basics.orderCode,
+            chargeId: basics.chargeId,
+            eventId,
           },
         });
+      } catch (e) {
+        // degrade gracefully
       }
 
-      if (pedidoExistente) {
-        if (shouldUpdateStatus(pedidoExistente.status, mapped)) {
-          await prisma.pedido.update({
-            where: { id: pedidoExistente.id },
-            data: { status: mapped },
-          });
-          logger.info(
-            { orderCode: basics.orderCode, status: mapped },
-            "[WEBHOOK] Pedido atualizado"
-          );
-        } else {
-          logger.info(
-            { orderCode: basics.orderCode, current: pedidoExistente.status, incoming: mapped },
-            "[WEBHOOK] Transição de status ignorada"
-          );
-        }
-      } else {
-        logger.warn({ orderCode: basics.orderCode }, "[WEBHOOK] Pedido não encontrado");
-      }
-    }
-
-    if (basics.chargeId && mapped) {
-      const existingCharge = await prisma.charge.findFirst({
-        where: { providerId: basics.chargeId },
-        select: { id: true },
+      const mapped = mapStatus({
+        type: basics.type,
+        orderStatus: basics.orderStatus,
+        chargeStatus: basics.chargeStatus,
       });
 
-      const common = {
-        status: mapped,
-        method: basics.method === "PIX" ? "PIX" : basics.method || "CARD",
-        qrCode: basics.qrText ?? undefined,
-        qrCodeUrl: basics.qrUrl ?? undefined,
-        raw: evt,
-      };
-
-      if (existingCharge) {
-        await prisma.charge.update({
-          where: { id: existingCharge.id },
-          data: common,
+      try {
+        await prisma.webhookLog.create({
+          data: {
+            event: basics.type,
+            orderCode: basics.orderCode,
+            payload: evt,
+          },
         });
-        logger.info({ chargeId: basics.chargeId }, "[WEBHOOK] Charge atualizada");
-      } else if (basics.orderCode) {
-        const pedido = await prisma.pedido.findFirst({
+      } catch (logErr) {
+        logger.error({ hookId, eventId, error: logErr?.message || logErr }, "[WEBHOOK] Erro ao salvar log");
+      }
+
+      if (basics.orderCode && mapped) {
+        let pedidoExistente = await prisma.pedido.findFirst({
           where: { code: basics.orderCode },
+        });
+
+        if (!pedidoExistente) {
+          pedidoExistente = await prisma.pedido.findFirst({
+            where: {
+              metadata: {
+                path: ["pagarmeOrderCode"],
+                equals: basics.orderCode,
+              },
+            },
+          });
+        }
+
+        if (pedidoExistente) {
+          if (shouldUpdateStatus(pedidoExistente.status, mapped)) {
+            await prisma.pedido.update({
+              where: { id: pedidoExistente.id },
+              data: { status: mapped },
+            });
+            logger.info(
+              { orderCode: basics.orderCode, status: mapped },
+              "[WEBHOOK] Pedido atualizado"
+            );
+          } else {
+            logger.info(
+              { orderCode: basics.orderCode, current: pedidoExistente.status, incoming: mapped },
+              "[WEBHOOK] Transição de status ignorada"
+            );
+          }
+        } else {
+          logger.warn({ orderCode: basics.orderCode }, "[WEBHOOK] Pedido não encontrado");
+        }
+      }
+
+      if (basics.chargeId && mapped) {
+        const existingCharge = await prisma.charge.findFirst({
+          where: { providerId: basics.chargeId },
           select: { id: true },
         });
-        if (pedido) {
-          await prisma.charge.create({
-            data: {
-              providerId: basics.chargeId,
-              ...common,
-              pedido: { connect: { id: pedido.id } },
-            },
+
+        const common = {
+          status: mapped,
+          method: basics.method === "PIX" ? "PIX" : basics.method || "CARD",
+          qrCode: basics.qrText ?? undefined,
+          qrCodeUrl: basics.qrUrl ?? undefined,
+          raw: evt,
+        };
+
+        if (existingCharge) {
+          await prisma.charge.update({
+            where: { id: existingCharge.id },
+            data: common,
           });
-          logger.info({ chargeId: basics.chargeId }, "[WEBHOOK] Charge criada");
+          logger.info({ chargeId: basics.chargeId }, "[WEBHOOK] Charge atualizada");
+        } else if (basics.orderCode) {
+          const pedido = await prisma.pedido.findFirst({
+            where: { code: basics.orderCode },
+            select: { id: true },
+          });
+          if (pedido) {
+            await prisma.charge.create({
+              data: {
+                providerId: basics.chargeId,
+                ...common,
+                pedido: { connect: { id: pedido.id } },
+              },
+            });
+            logger.info({ chargeId: basics.chargeId }, "[WEBHOOK] Charge criada");
+          } else {
+            logger.warn(
+              { chargeId: basics.chargeId, orderCode: basics.orderCode },
+              "[WEBHOOK] Pedido não encontrado para criar Charge"
+            );
+          }
         } else {
           logger.warn(
-            { chargeId: basics.chargeId, orderCode: basics.orderCode },
-            "[WEBHOOK] Pedido não encontrado para criar Charge"
+            { chargeId: basics.chargeId },
+            "[WEBHOOK] Sem orderCode para criar Charge"
           );
         }
-      } else {
-        logger.warn(
-          { chargeId: basics.chargeId },
-          "[WEBHOOK] Sem orderCode para criar Charge"
-        );
       }
-    }
 
-    if (mapped === "PAID" && basics.orderCode) {
-      try {
-        await markPaidAndRelease(basics.orderCode, { hookId, basics, clientIp });
-        logger.info({ orderCode: basics.orderCode }, "[WEBHOOK] Liberação concluída");
-        await auditLog({
-          requestId,
-          event: 'PAYMENT_CONFIRMED',
-          entityId: basics.orderCode,
-          ip: clientIp,
-          result: 'SUCCESS',
-          metadata: {
-            provider: 'pagarme',
-            orderCode: basics.orderCode,
-          },
-        });
-      } catch (releaseErr) {
+      if (mapped === "PAID" && basics.orderCode) {
+        try {
+          await markPaidAndRelease(basics.orderCode, { hookId, basics, clientIp });
+          logger.info({ orderCode: basics.orderCode }, "[WEBHOOK] Liberação concluída");
+          await auditLog({
+            requestId,
+            event: 'PAYMENT_CONFIRMED',
+            entityId: basics.orderCode,
+            ip: clientIp,
+            result: 'SUCCESS',
+            metadata: {
+              provider: 'pagarme',
+              orderCode: basics.orderCode,
+              eventId,
+            },
+          });
+        } catch (releaseErr) {
+          logger.error(
+            { orderCode: basics.orderCode, error: releaseErr?.message || releaseErr },
+            "[WEBHOOK] Erro ao liberar acesso"
+          );
+          await auditLog({
+            requestId,
+            event: 'PAYMENT_CONFIRMED',
+            entityId: basics.orderCode,
+            ip: clientIp,
+            result: 'FAIL',
+            metadata: { error: String(releaseErr?.message || releaseErr), eventId },
+          });
+        }
+      }
+
+      await prisma.webhookEvent.update({
+        where: { id: webhookEvent.id },
+        data: {
+          status: "PROCESSED",
+          processedAt: new Date(),
+        },
+      });
+
+      return ok({ processed: true }, { requestId });
+    } catch (processingErr) {
+      logger.error(
+        { eventId, uniqueKey, error: processingErr?.message || processingErr },
+        "[WEBHOOK] Falha durante processamento"
+      );
+      await prisma.webhookEvent.update({
+        where: { id: webhookEvent.id },
+        data: {
+          status: "FAILED",
+        },
+      }).catch((updateErr) => {
         logger.error(
-          { orderCode: basics.orderCode, error: releaseErr?.message || releaseErr },
-          "[WEBHOOK] Erro ao liberar acesso"
+          { eventId, uniqueKey, error: updateErr?.message || updateErr },
+          "[WEBHOOK] Falha ao atualizar status FAILED"
         );
-        await auditLog({
-          requestId,
-          event: 'PAYMENT_CONFIRMED',
-          entityId: basics.orderCode,
-          ip: clientIp,
-          result: 'FAIL',
-          metadata: { error: String(releaseErr?.message || releaseErr) },
-        });
-      }
-    }
+      });
 
-    return NextResponse.json({ ok: true });
+      return fail('INTERNAL_ERROR', { requestId, status: 500 });
+    }
   } catch (err) {
-    logger.error({ error: err?.message || err }, "[WEBHOOK] Erro inesperado");
-    return NextResponse.json(
-      { ok: false, error: String(err?.message || err) },
-      { status: 500 }
-    );
+    logger.error({ err, requestId, route: 'api_webhooks_pagarme' }, "[WEBHOOK] Erro inesperado");
+    return fail('INTERNAL_ERROR', { requestId, status: 500 });
   }
 }

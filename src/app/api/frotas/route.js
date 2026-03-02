@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { relayIdentityStatus } from '@/lib/relayClient';
 import { getRequestAuth } from '@/lib/auth/context';
 import { logger } from '@/lib/logger';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,8 @@ function mapStateToStatus(state) {
   return 'desconhecido';
 }
 
-export async function GET() {
+export async function GET(req) {
+  const requestId = getOrCreateRequestId(req);
   try {
     const auth = await getRequestAuth();
     if (!auth.session) {
@@ -82,7 +84,7 @@ export async function GET() {
         const status = await (async () => {
           if (!identity) return { identity: null, ...RELAY_FALLBACK, messageCode: 'MISSING_ROUTER_IDENTITY' };
           try {
-            const st = await relayIdentityStatus(identity);
+            const st = await relayIdentityStatus(identity, { requestId });
             return { identity, ...st };
           } catch {
             return { identity, ...RELAY_FALLBACK };

@@ -2,8 +2,9 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { logger } from '@/lib/logger';
 
 /* Helper JSON + CORS */
 function json(payload, status = 200) {
@@ -11,7 +12,6 @@ function json(payload, status = 200) {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-store',
     },
   });
@@ -19,17 +19,18 @@ function json(payload, status = 200) {
 
 /* CORS preflight para DELETE */
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new Response(null, { status: 204 });
 }
 
-export async function DELETE(_req, context) {
+export async function DELETE(req, context) {
+  const auth = await requireAuth(req, { role: 'MASTER' });
+  if (auth.error) {
+    return Response.json(
+      { error: auth.error === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED' },
+      { status: auth.error }
+    );
+  }
+
   try {
     const { id } = await context.params;
     const cleanId = String(id || '').trim();
@@ -65,7 +66,7 @@ export async function DELETE(_req, context) {
 
     return json({ ok: true, id: sessao.id });
   } catch (e) {
-    console.error('DELETE /api/sessoes/[id]', e?.message || e);
-    return json({ error: 'Erro ao encerrar sessão' }, 500);
+    logger.error({ error: e?.message || e }, 'DELETE /api/sessoes/[id] error');
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }

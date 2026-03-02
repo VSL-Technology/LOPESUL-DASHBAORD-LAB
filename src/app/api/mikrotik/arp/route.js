@@ -4,7 +4,8 @@ import { z } from "zod";
 import { requireDeviceRouter } from "@/lib/device-router";
 import { logger } from "@/lib/logger";
 import { recordApiMetric } from "@/lib/metrics/index";
-import { relayFetch } from "@/lib/relay";
+import { relayFetchSigned } from "@/lib/relayFetchSigned";
+import { getOrCreateRequestId } from "@/lib/security/requestId";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ const QuerySchema = z.object({
 
 export async function GET(req) {
   const started = Date.now();
+  const requestId = getOrCreateRequestId(req);
   try {
     const { searchParams } = new URL(req.url);
     const parsed = QuerySchema.safeParse({
@@ -52,14 +54,15 @@ export async function GET(req) {
     }
 
     // Delegamos a resolução ARP ao Relay (fonte da verdade Mikrotik)
-    const r = await relayFetch("/relay/arp/lookup", {
+    const r = await relayFetchSigned({
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      originalUrl: "/relay/arp/lookup",
+      headers: { "x-request-id": requestId },
+      body: {
         ip,
         deviceId: routerInfo.device?.id ?? deviceId ?? null,
         mikId: routerInfo.device?.mikId ?? mikId ?? null,
-      }),
+      },
     }).catch((err) => {
       logger.warn({ err: err?.message || err }, "[mikrotik/arp] relay lookup failed");
       return null;
@@ -69,7 +72,7 @@ export async function GET(req) {
       return NextResponse.json({ error: "Relay unreachable" }, { status: 502 });
     }
 
-    const j = await r.json().catch(() => ({}));
+    const j = r?.data || {};
     const mac = j?.mac || j?.data?.mac || null;
 
     if (mac) {

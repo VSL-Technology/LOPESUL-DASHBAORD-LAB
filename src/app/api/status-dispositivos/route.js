@@ -2,13 +2,15 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { ok, fail } from '@/lib/api/response';
+import { getRequestAuth } from '@/lib/auth/context';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
-import { checkInternalAuth } from '@/lib/security/internalAuth';
-import { getRequestAuth } from '@/lib/auth/context';
+import prisma from '@/lib/prisma';
 import { relayIdentityStatus } from '@/lib/relayClient';
+import { checkInternalAuth } from '@/lib/security/internalAuth';
+import { rateLimitOrThrow } from '@/lib/security/rateLimit';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 const RELAY_FALLBACK = {
   state: 'DEGRADED',
@@ -16,12 +18,13 @@ const RELAY_FALLBACK = {
   messageCode: 'RELAY_UNAVAILABLE',
 };
 
-async function fetchStatusFromRelay(identity, extra = {}) {
+async function fetchStatusFromRelay(identity, requestId, extra = {}) {
   if (!identity) {
     return { identity: null, ...RELAY_FALLBACK, online: false, ...extra };
   }
+
   try {
-    const status = await relayIdentityStatus(identity);
+    const status = await relayIdentityStatus(identity, { requestId });
     return {
       identity,
       ...extra,
@@ -40,18 +43,27 @@ async function fetchStatusFromRelay(identity, extra = {}) {
 
 export async function GET(req) {
   const started = Date.now();
+  const requestId = getOrCreateRequestId(req);
+
   const internalOk = checkInternalAuth(req);
-  let auth = null;
   if (!internalOk) {
-    auth = await getRequestAuth();
+    const auth = await getRequestAuth();
     if (!auth?.session) {
-      logger.warn({}, '[status-dispositivos] unauthorized');
+      logger.warn({ route: 'api_status_dispositivos', requestId }, '[status-dispositivos] unauthorized');
       recordApiMetric('status_dispositivos', { durationMs: Date.now() - started, ok: false });
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return fail('UNAUTHORIZED', { requestId });
     }
   }
+
+  const limited = await rateLimitOrThrow(req, {
+    name: 'status_dispositivos_get',
+    limit: 120,
+    windowMs: 60_000,
+    requestId,
+  });
+  if (limited) return limited;
+
   try {
-    // Buscar todos os roteadores (Mikrotiks)
     const roteadores = await prisma.roteador.findMany({
       select: {
         id: true,
@@ -61,7 +73,6 @@ export async function GET(req) {
       },
     });
 
-    // Buscar todos os dispositivos (Starlinks)
     const dispositivos = await prisma.dispositivo.findMany({
       select: {
         id: true,
@@ -70,36 +81,33 @@ export async function GET(req) {
       },
     });
 
-    // Verificar status de todos os Mikrotiks via Relay (fonte da verdade)
     const mikrotiksStatus = await Promise.all(
-      roteadores.map((r) =>
-        fetchStatusFromRelay(r.identity || null, {
-          id: r.id,
-          nome: r.nome,
-          ip: r.ipLan,
-          messageCode: r.identity ? undefined : 'MISSING_ROUTER_IDENTITY',
+      roteadores.map((router) =>
+        fetchStatusFromRelay(router.identity || null, requestId, {
+          id: router.id,
+          nome: router.nome,
+          ip: router.ipLan,
+          messageCode: router.identity ? undefined : 'MISSING_ROUTER_IDENTITY',
         })
       )
     );
 
-    // Verificar status de todos os dispositivos/Starlinks via Relay
     const starlinksStatus = await Promise.all(
-      dispositivos.map((d) =>
-        fetchStatusFromRelay(d.mikId || d.ip || d.id, {
-          id: d.id,
-          nome: d.mikId || d.ip || 'N/A',
-          ip: d.ip,
+      dispositivos.map((device) =>
+        fetchStatusFromRelay(device.mikId || device.ip || device.id, requestId, {
+          id: device.id,
+          nome: device.mikId || device.ip || 'N/A',
+          ip: device.ip,
         })
       )
     );
 
-    // Encontrar o primeiro online de cada tipo
-    const mikrotikOnline = mikrotiksStatus.find((m) => m.online);
-    const starlinkOnline = starlinksStatus.find((s) => s.online);
+    const mikrotikOnline = mikrotiksStatus.find((item) => item.online);
+    const starlinkOnline = starlinksStatus.find((item) => item.online);
 
-    const body = {
+    const payload = {
       mikrotik: {
-        online: !!mikrotikOnline,
+        online: Boolean(mikrotikOnline),
         nome: mikrotikOnline?.nome || null,
         identity: mikrotikOnline?.identity || null,
         ip: mikrotikOnline?.ip || null,
@@ -110,7 +118,7 @@ export async function GET(req) {
         todos: mikrotiksStatus,
       },
       starlink: {
-        online: !!starlinkOnline,
+        online: Boolean(starlinkOnline),
         nome: starlinkOnline?.nome || null,
         ip: starlinkOnline?.ip || null,
         state: starlinkOnline?.state || null,
@@ -120,22 +128,12 @@ export async function GET(req) {
         todos: starlinksStatus,
       },
     };
-    logger.debug({ mikrotikOnline: Boolean(mikrotikOnline), starlinkOnline: Boolean(starlinkOnline) }, '[status-dispositivos]');
+
     recordApiMetric('status_dispositivos', { durationMs: Date.now() - started, ok: true });
-    return NextResponse.json(body, {
-      status: 200,
-      headers: { 'Cache-Control': 'no-store' },
-    });
-  } catch (e) {
-    logger.error({ error: e?.message || e }, 'GET /api/status-dispositivos');
+    return ok(payload, { requestId });
+  } catch (err) {
+    logger.error({ err, requestId, route: 'api_status_dispositivos' }, 'GET /api/status-dispositivos');
     recordApiMetric('status_dispositivos', { durationMs: Date.now() - started, ok: false });
-    return NextResponse.json({
-      mikrotik: { online: false, nome: null, identity: null, ip: null, total: 0, todos: [] },
-      starlink: { online: false, nome: null, ip: null, via: null, total: 0, todos: [] },
-      error: String(e?.message || e),
-    }, {
-      status: 500,
-      headers: { 'Cache-Control': 'no-store' },
-    });
+    return fail('INTERNAL_ERROR', { requestId });
   }
 }

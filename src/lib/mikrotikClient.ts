@@ -3,7 +3,7 @@
 // usando o Relay HTTP (/relay/exec). Não depende mais de MIKROTIK_HOST
 // global; sempre recebe o roteador que deve ser usado.
 
-import { relayFetch } from '@/lib/relay';
+import { relayFetchSigned } from '@/lib/relayFetchSigned';
 import type { Roteador } from '@prisma/client';
 
 export interface MikrotikCommandResult {
@@ -18,6 +18,7 @@ export interface MikrotikRouterContext {
   // Por enquanto ainda usamos usuário/senha globais ou usuario do roteador,
   // mas o HOST é sempre o do roteador.
   userFallback?: string | null;
+  requestId?: string;
 }
 
 function resolveCredentials(ctx: MikrotikRouterContext) {
@@ -42,20 +43,19 @@ export async function execOnRouter(
   command: string
 ): Promise<MikrotikCommandResult> {
   const { host, user, pass } = resolveCredentials(ctx);
-
-  const r = await relayFetch('/relay/exec', {
+  const out = await relayFetchSigned({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ host, user, pass, command }),
+    originalUrl: '/relay/exec',
+    body: { host, user, pass, command },
+    requestId: ctx.requestId,
   });
-
-  const body = await r.json().catch(() => ({}));
-  const ok = r.ok && (body?.ok !== false);
+  const body = out?.data || {};
+  const ok = out.ok && (body?.ok !== false);
 
   return {
     ok,
     command,
-    status: r.status,
+    status: out.status,
     data: body,
   };
 }
