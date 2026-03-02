@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getRequestAuth } from "@/lib/auth/context";
 import { relayProxyFetch } from "@/lib/relayProxy";
+import { getOrCreateRequestId } from "@/lib/security/requestId";
 
 export const runtime = "nodejs";
 
@@ -26,11 +27,12 @@ function classifyDbError(err) {
   return "db_error";
 }
 
-export async function GET() {
+export async function GET(req) {
   const auth = await getRequestAuth();
   if (!auth?.session || !auth.isMaster) {
     return NextResponse.json({ ok: false, code: "forbidden" }, { status: 403 });
   }
+  const requestId = getOrCreateRequestId(req);
 
   const ts = new Date().toISOString();
 
@@ -42,12 +44,12 @@ export async function GET() {
 
   const t0 = nowMs();
   try {
-    const token = process.env.RELAY_TOKEN_HEALTH || process.env.RELAY_TOKEN_TOOLS;
     const r = await relayProxyFetch("/relay/health", {
       method: "GET",
-      headers: token ? { "x-relay-token": token } : undefined,
       timeoutMs: 3000,
       retries: 1,
+      token: process.env.RELAY_TOKEN_HEALTH || process.env.RELAY_TOKEN_TOOLS || process.env.RELAY_TOKEN || '',
+      requestId,
     });
     relayLatencyMs = nowMs() - t0;
     if (r?.ok && r?.json?.ok) {

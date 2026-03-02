@@ -214,6 +214,18 @@ model WebhookLog {
   @@index([event])
 }
 
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String
+  eventId     String
+  eventType   String?
+  receivedAt  DateTime @default(now())
+  processedAt DateTime?
+  status      String   @default("RECEIVED")
+  payloadHash String?
+  uniqueKey   String   @unique
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   requestId String

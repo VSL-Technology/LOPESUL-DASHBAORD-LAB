@@ -1,25 +1,11 @@
 // src/lib/relayProxy.js
-// Helper centralizado para chamadas ao Relay com timeout + retry (transientes).
+// Helper centralizado para chamadas ao Relay com timeout + retry, sempre com HMAC assinado.
 import 'server-only';
+import { relayFetchSigned } from './relayFetchSigned';
 
 const TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const DEFAULT_TIMEOUT = 5000;
 const DEFAULT_RETRIES = 1;
-
-function getRelayBase() {
-  const base = process.env.RELAY_URL || process.env.RELAY_BASE_URL || process.env.RELAY_BASE || '';
-  if (!base) throw new Error('RELAY_URL/RELAY_BASE_URL ausente');
-  return base.replace(/\/+$/, '');
-}
-
-function relayHeaders(extra = {}) {
-  const token = process.env.RELAY_TOKEN;
-  return {
-    Authorization: token ? `Bearer ${token}` : '',
-    'Content-Type': 'application/json',
-    ...extra,
-  };
-}
 
 function isAbortError(err) {
   return err?.name === 'AbortError';
@@ -29,67 +15,61 @@ function shouldRetry(status) {
   return TRANSIENT_STATUSES.has(status);
 }
 
-async function fetchWithTimeout(url, init, ms) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(id);
-  }
+function normalizePath(path) {
+  if (!path || typeof path !== 'string') return '/';
+  return path.startsWith('/') ? path : `/${path}`;
 }
 
 export async function relayProxyFetch(path, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT;
   const retries = opts.retries ?? DEFAULT_RETRIES;
-  const method = opts.method || 'GET';
-  const body = opts.body ? JSON.stringify(opts.body) : undefined;
-  const headers = relayHeaders(opts.headers || {});
-
-  const base = getRelayBase();
-  const url = `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+  const method = String(opts.method || 'GET').toUpperCase();
+  const originalUrl = normalizePath(path);
 
   let attempt = 0;
   let lastError = null;
 
   while (attempt <= retries) {
-    attempt++;
+    attempt += 1;
+
     try {
-      const res = await fetchWithTimeout(
-        url,
-        {
-          method,
-          headers,
-          body,
-          cache: 'no-store',
-        },
-        timeoutMs
-      );
+      const out = await relayFetchSigned({
+        method,
+        originalUrl,
+        body: opts.body,
+        headers: opts.headers || {},
+        timeoutMs,
+        token: opts.token,
+        apiSecret: opts.apiSecret,
+        baseUrl: opts.baseUrl,
+        requestId: opts.requestId,
+      });
 
-      const text = await res.text().catch(() => null);
-      let json = null;
-      try {
-        json = text ? JSON.parse(text) : null;
-      } catch {
-        json = null;
-      }
-
-      if (!res.ok) {
-        if (attempt <= retries && shouldRetry(res.status)) {
-          lastError = `HTTP_${res.status}`;
-          continue;
-        }
-        return { ok: false, status: res.status, json, text, error: `HTTP_${res.status}` };
-      }
-
-      return { ok: true, status: res.status, json, text, error: null };
+      return {
+        ok: true,
+        status: out.status,
+        json: out.data ?? null,
+        text: out.text ?? null,
+        error: null,
+      };
     } catch (err) {
-      const retryable = isAbortError(err) || err?.code === 'ECONNRESET' || err?.code === 'ENOTFOUND';
+      const status = Number(err?.status || 0);
+      const json = err?.data ?? null;
+      const text = typeof json === 'string' ? json : null;
       lastError = err?.message || String(err);
+
+      const retryable = status === 0 || shouldRetry(status) || isAbortError(err);
       if (attempt <= retries && retryable) {
         continue;
       }
-      return { ok: false, status: 0, json: null, text: null, error: lastError };
+
+      return {
+        ok: false,
+        status,
+        json,
+        text,
+        error: lastError,
+      };
     }
   }
 

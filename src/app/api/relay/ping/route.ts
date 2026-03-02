@@ -2,6 +2,7 @@ import { relayFetchSigned } from '@/lib/relayFetchSigned';
 import { checkInternalAuth } from '@/lib/security/internalAuth';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,12 +13,13 @@ function resolveRelayBaseUrl() {
 
 export async function GET(req: Request) {
   const started = Date.now();
+  const requestId = getOrCreateRequestId(req);
   if (!checkInternalAuth(req)) {
     logger.warn({}, '[relay/ping] unauthorized');
     recordApiMetric('relay_ping', { durationMs: Date.now() - started, ok: false });
     return new Response(JSON.stringify({ ok: false, error: 'Unauthorized' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
@@ -33,7 +35,7 @@ export async function GET(req: Request) {
     recordApiMetric('relay_ping', { durationMs: Date.now() - started, ok: false });
     return new Response(JSON.stringify({ ok: false, error: 'relay_config_missing' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json' },
     });
   }
   try {
@@ -43,11 +45,12 @@ export async function GET(req: Request) {
       baseUrl: relayBaseUrl,
       token: relayToken,
       apiSecret,
+      requestId,
     });
     recordApiMetric('relay_ping', { durationMs: Date.now() - started, ok: resp.ok });
     return new Response(JSON.stringify(resp.data ?? resp), {
       status: resp.status || (resp.ok ? 200 : 502),
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json' },
     });
   } catch (e: any) {
     const status = e?.status || 502;
@@ -56,7 +59,7 @@ export async function GET(req: Request) {
     recordApiMetric('relay_ping', { durationMs: Date.now() - started, ok: false });
     return new Response(JSON.stringify(payload), {
       status,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 }

@@ -7,18 +7,20 @@ import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { syncWireguardPeer } from '@/lib/wireguard';
 import { getRequestAuth } from '@/lib/auth/context';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
 import { logger } from '@/lib/logger';
+import { applySecurityHeaders } from '@/lib/security/httpGuards';
 
 async function ensureMaster() {
   const auth = await getRequestAuth();
   if (!auth.session) {
-    return NextResponse.json({ error: 'Autenticação necessária.' }, { status: 401 });
+    return json({ error: 'Autenticação necessária.' }, 401);
   }
   if (!auth.isMaster) {
     logger.warn({ role: auth.role }, '[roteadores] acesso negado (não master)');
-    return NextResponse.json(
+    return json(
       { error: 'Apenas operadores Master podem acessar roteadores.' },
-      { status: 403 }
+      403
     );
   }
   return null;
@@ -47,18 +49,19 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(roteadores, { status: 200 });
+    return json(roteadores, 200);
   } catch (err) {
     console.error('GET /api/roteadores =>', err);
-    return NextResponse.json({ error: 'Erro ao listar roteadores.' }, { status: 500 });
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }
 
 // Cria um novo roteador
 export async function POST(req) {
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
   try {
-    const denied = await ensureMaster();
-    if (denied) return denied;
     const body = await req.json().catch(() => ({}));
     const {
       nome,
@@ -72,9 +75,9 @@ export async function POST(req) {
     } = body || {};
 
     if (!nome?.trim() || !ipLan?.trim() || !usuario?.trim() || !senha?.trim()) {
-      return NextResponse.json(
+      return json(
         { error: 'Nome, IP, usuário e senha são obrigatórios.' },
-        { status: 400 }
+        400
       );
     }
 
@@ -124,9 +127,13 @@ export async function POST(req) {
       },
     });
 
-    return NextResponse.json(created, { status: 201 });
+    return json(created, 201);
   } catch (err) {
-    console.error('POST /api/roteadores =>', err);
-    return NextResponse.json({ error: 'Erro ao criar roteador.' }, { status: 500 });
+    logger.error({ error: err?.message || err }, 'POST /api/roteadores error');
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
+}
+
+function json(payload, status = 200) {
+  return applySecurityHeaders(NextResponse.json(payload, { status }), { noStore: true });
 }

@@ -2,8 +2,9 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { logger } from '@/lib/logger';
 
 /* ---------- utils ---------- */
 function json(payload, status = 200) {
@@ -11,7 +12,6 @@ function json(payload, status = 200) {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-store',
     },
   });
@@ -26,14 +26,7 @@ function isMac(s) {
 
 /* ---------- CORS preflight ---------- */
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new Response(null, { status: 204 });
 }
 
 /**
@@ -45,6 +38,14 @@ export async function OPTIONS() {
  *  - { ip: "...", mac: "..." }
  */
 export async function POST(req) {
+  const auth = await requireAuth(req, { role: 'MASTER' });
+  if (auth.error) {
+    return Response.json(
+      { error: auth.error === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED' },
+      { status: auth.error }
+    );
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
     const id  = body?.id?.toString().trim() || null;
@@ -122,7 +123,7 @@ export async function POST(req) {
 
     return json({ ok: true, revoked: ids.length, ids });
   } catch (e) {
-    console.error('POST /api/sessoes/revogar', e?.message || e);
-    return json({ error: 'Erro interno' }, 500);
+    logger.error({ error: e?.message || e }, 'POST /api/sessoes/revogar error');
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
 }

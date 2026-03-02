@@ -4,6 +4,8 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { logger } from '@/lib/logger';
 
 function badRequest(msg) {
   return NextResponse.json({ error: msg }, { status: 400 });
@@ -14,6 +16,14 @@ function isIsoDate(s) {
 }
 
 export async function GET(req) {
+  const auth = await requireAuth(req, { role: 'READER' });
+  if (auth.error) {
+    return Response.json(
+      { error: auth.error === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED' },
+      { status: auth.error }
+    );
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     await prisma.sessaoAtiva.updateMany({
@@ -133,7 +143,7 @@ export async function GET(req) {
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch (e) {
-    console.error('GET /api/sessoes', e?.message || e);
-    return NextResponse.json({ error: 'Erro ao listar sessões' }, { status: 500 });
+    logger.error({ error: e?.message || e }, 'GET /api/sessoes error');
+    return NextResponse.json({ error: 'INTERNAL_ERROR' }, { status: 500 });
   }
 }

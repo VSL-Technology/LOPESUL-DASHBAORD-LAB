@@ -1,9 +1,12 @@
 import { z } from 'zod';
-import { relayFetchSigned } from '@/lib/relayFetchSigned';
+import { ok, fail, codeFromStatus } from '@/lib/api/response';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
 import { requireDeviceRouter } from '@/lib/device-router';
-import { checkInternalAuth } from '@/lib/security/internalAuth';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
+import { relayFetchSigned } from '@/lib/relayFetchSigned';
+import { rateLimitOrThrow } from '@/lib/security/rateLimit';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,14 +17,7 @@ function resolveRelayBaseUrl() {
 }
 
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new Response(null, { status: 204 });
 }
 
 const BodySchema = z.object({
@@ -33,25 +29,34 @@ const BodySchema = z.object({
 
 export async function POST(req) {
   const started = Date.now();
-  if (!checkInternalAuth(req)) {
-    logger.warn({}, '[relay/exec-by-device] unauthorized');
-    recordApiMetric('relay_exec_device', { durationMs: Date.now() - started, ok: false });
-    return corsJson({ ok: false, error: 'Unauthorized' }, 401);
-  }
+  const requestId = getOrCreateRequestId(req);
+
+  const auth = await requireMutationAuth(req, { role: 'MASTER', requestId });
+  if (auth instanceof Response) return auth;
+
+  const limited = await rateLimitOrThrow(req, {
+    name: 'relay_exec_by_device',
+    limit: 10,
+    windowMs: 60_000,
+    requestId,
+  });
+  if (limited) return limited;
 
   const body = await req.json().catch(() => ({}));
   const parsed = BodySchema.safeParse(body);
 
   if (!parsed.success) {
-    logger.warn({ issues: parsed.error.issues }, '[relay/exec-by-device] invalid payload');
+    logger.warn({ route: 'api_relay_exec_by_device', requestId, issues: parsed.error.issues }, '[relay/exec-by-device] invalid payload');
     recordApiMetric('relay_exec_device', { durationMs: Date.now() - started, ok: false });
-    return corsJson({ ok: false, error: 'invalid payload' }, 400);
+    return fail('BAD_REQUEST', { requestId });
   }
+
   const command = typeof parsed.data.command === 'string' ? parsed.data.command.trim() : '';
   const sentences = Array.isArray(parsed.data.sentences) ? parsed.data.sentences : null;
 
   if (!command && (!sentences || sentences.length === 0)) {
-    return corsJson({ ok: false, error: 'missing command' }, 400);
+    recordApiMetric('relay_exec_device', { durationMs: Date.now() - started, ok: false });
+    return fail('BAD_REQUEST', { requestId });
   }
 
   const asString = (value) => {
@@ -67,10 +72,9 @@ export async function POST(req) {
       mikId: asString(parsed.data.mikId),
     });
   } catch (err) {
-    return corsJson(
-      { ok: false, error: err?.code || 'device_not_found', detail: err?.message },
-      err?.code === 'device_not_found' ? 404 : 400,
-    );
+    logger.error({ err, requestId, route: 'api_relay_exec_by_device' }, '[relay/exec-by-device] router resolution failed');
+    recordApiMetric('relay_exec_device', { durationMs: Date.now() - started, ok: false });
+    return fail('INTERNAL_ERROR', { requestId });
   }
 
   const payload = {
@@ -92,11 +96,11 @@ export async function POST(req) {
 
   if (!relayBaseUrl || !relayToken || !apiSecret) {
     logger.error(
-      { hasBase: !!relayBaseUrl, hasToken: !!relayToken, hasSecret: !!apiSecret },
-      '[relay/exec-by-device] missing relay config',
+      { route: 'api_relay_exec_by_device', requestId, hasBase: Boolean(relayBaseUrl), hasToken: Boolean(relayToken), hasSecret: Boolean(apiSecret) },
+      '[relay/exec-by-device] missing relay config'
     );
     recordApiMetric('relay_exec_device', { durationMs: Date.now() - started, ok: false });
-    return corsJson({ ok: false, error: 'relay_config_missing' }, 500);
+    return fail('INTERNAL_ERROR', { requestId });
   }
 
   try {
@@ -107,28 +111,15 @@ export async function POST(req) {
       baseUrl: relayBaseUrl,
       token: relayToken,
       apiSecret,
+      requestId,
     });
 
     recordApiMetric('relay_exec_device', { durationMs: Date.now() - started, ok: resp.ok });
-    return corsJson(resp.data ?? resp, resp.status || (resp.ok ? 200 : 502));
+    return ok(resp.data ?? resp, { requestId, status: resp.status || (resp.ok ? 200 : 502) });
   } catch (err) {
-    const status = err?.status || 502;
-    const payloadErr = err?.data || { ok: false, error: err?.message || 'relay_unreachable' };
-    logger.error({ error: err?.message || err, status }, '[relay/exec-by-device] relay unreachable');
+    const status = Number(err?.status || 500);
+    logger.error({ err, requestId, route: 'api_relay_exec_by_device', status }, '[relay/exec-by-device] relay unreachable');
     recordApiMetric('relay_exec_device', { durationMs: Date.now() - started, ok: false });
-    return corsJson(
-      payloadErr,
-      status,
-    );
+    return fail(codeFromStatus(status), { requestId, status });
   }
-}
-
-function corsJson(payload, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
 }

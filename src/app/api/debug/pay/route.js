@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { liberarAcessoInteligente } from '@/lib/liberarAcesso';
-import { validateInternalToken, checkInternalAuth } from '@/lib/security/internalAuth';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
 import { logger } from '@/lib/logger';
+import { applySecurityHeaders } from '@/lib/security/httpGuards';
 
 /**
  * Debug: simula o webhook marcando o pedido como PAID
@@ -14,25 +15,21 @@ import { logger } from '@/lib/logger';
  * }
  */
 export async function POST(req) {
+  if (process.env.NODE_ENV === 'production') {
+    return json({ error: 'NOT_FOUND' }, 404);
+  }
+
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
   try {
-    if (!checkInternalAuth(req)) {
-      logger.warn({}, '[debug/pay] acesso negado (internal token)');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const validation = validateInternalToken(req);
-    if (!validation.ok) {
-      logger.warn({ reason: validation.reason }, '[debug/pay] acesso negado');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await req.json().catch(() => ({}));
     const code = String(body?.code || '').trim();
 
     if (!code) {
-      return NextResponse.json(
+      return json(
         { error: 'code é obrigatório' },
-        { status: 400 }
+        400
       );
     }
 
@@ -46,9 +43,9 @@ export async function POST(req) {
 
     if (!pedido) {
       logger.warn({ code }, '[debug/pay] pedido não encontrado');
-      return NextResponse.json(
+      return json(
         { error: 'Pedido não encontrado' },
-        { status: 404 }
+        404
       );
     }
 
@@ -85,23 +82,21 @@ export async function POST(req) {
 
     logger.info({ response: relayResp }, '[debug/pay] relay executado');
 
-    return NextResponse.json(
+    return json(
       {
         ok: true,
         message: 'Pedido marcado como PAID e Relay chamado com sucesso (modo WEBHOOK).',
         pedidoId: pedido.id,
         relay: relayResp,
       },
-      { status: 200 }
+      200
     );
   } catch (err) {
     logger.error({ error: err?.message || err }, '[debug/pay] erro inesperado');
-    return NextResponse.json(
-      {
-        error: 'Erro interno ao simular pagamento e chamar Relay.',
-        details: err?.message ?? String(err),
-      },
-      { status: 500 }
-    );
+    return json({ error: 'INTERNAL_ERROR' }, 500);
   }
+}
+
+function json(payload, status = 200) {
+  return applySecurityHeaders(NextResponse.json(payload, { status }), { noStore: true });
 }

@@ -4,9 +4,11 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { ensureDeviceRouter } from '@/lib/device-router';
 import callRelay from '@/lib/relayClient';
+import { requireAuth } from '@/lib/auth/requireAuth';
 import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import { ENV } from '@/lib/env';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 const BodySchema = z.object({
   ip: z.string().trim().optional().nullable(),
@@ -29,6 +31,10 @@ const normalizeMac = (value) => {
 };
 
 export async function POST(req) {
+  const auth = await requireAuth(req, { role: 'MASTER' });
+  if (auth.error) return Response.json({ error: 'UNAUTHORIZED' }, { status: auth.error });
+  const requestId = getOrCreateRequestId(req);
+
   try {
     const json = await req.json().catch(() => ({}));
     const parsed = BodySchema.safeParse(json);
@@ -83,6 +89,7 @@ export async function POST(req) {
     const resp = await callRelay('/relay/authorize-by-pedido', payload, {
       retries: 0,
       timeoutMs: 5000,
+      requestId,
     });
 
     if (!resp.ok) {

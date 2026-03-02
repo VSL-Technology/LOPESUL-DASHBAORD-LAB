@@ -9,6 +9,7 @@ import { relayIdentityStatus } from '@/lib/relayClient';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
 import { getRequestAuth } from '@/lib/auth/context';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 const MAX_HOSTS = 1000;
 const RELAY_FALLBACK = {
@@ -28,18 +29,19 @@ function identityFromDispositivo(d) {
   return d?.mikId || d?.ip || d?.id || null;
 }
 
-async function fetchStatus(identity) {
+async function fetchStatus(identity, requestId) {
   if (!identity) return { identity: null, ...RELAY_FALLBACK, online: false };
   try {
-    const st = await relayIdentityStatus(identity);
+    const st = await relayIdentityStatus(identity, { requestId });
     return { identity, ...st, online: st.state === 'OK' };
   } catch {
     return { identity, ...RELAY_FALLBACK, online: false };
   }
 }
 
-export async function GET() {
+export async function GET(req) {
   const started = Date.now();
+  const requestId = getOrCreateRequestId(req);
   try {
     const auth = await getRequestAuth();
     if (!auth.session) {
@@ -67,7 +69,7 @@ export async function GET() {
 
     const identities = uniq(dispositivos.map(identityFromDispositivo)).slice(0, MAX_HOSTS);
 
-    const statuses = await Promise.all(identities.map((id) => fetchStatus(id)));
+    const statuses = await Promise.all(identities.map((id) => fetchStatus(id, requestId)));
 
     const okStatus = statuses.find((s) => s.online) || null;
     const baseRelay = (() => {

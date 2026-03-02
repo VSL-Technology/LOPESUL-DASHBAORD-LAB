@@ -1,14 +1,27 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import prisma from "@/lib/prisma";
-import { assertPlanId, PLANS } from "@/lib/plans";
+import { cookies } from 'next/headers';
+import { ok, fail } from '@/lib/api/response';
+import { assertPlanId, PLANS } from '@/lib/plans';
+import prisma from '@/lib/prisma';
+import { rateLimitOrThrow } from '@/lib/security/rateLimit';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
-  const token = cookies().get("lps_token")?.value;
-  if (!token) return NextResponse.json({ ok: false, error: "token ausente" }, { status: 401 });
+  const requestId = getOrCreateRequestId(req);
+
+  const limited = await rateLimitOrThrow(req, {
+    name: 'pix_criar',
+    limit: 30,
+    windowMs: 60_000,
+    requestId,
+  });
+  if (limited) return limited;
+
+  const cookieStore = await cookies();
+  const token = cookieStore.get('lps_token')?.value;
+  if (!token) return fail('UNAUTHORIZED', { requestId });
 
   const body = await req.json().catch(() => ({}));
   const { planId } = body || {};
@@ -16,18 +29,17 @@ export async function POST(req) {
   try {
     assertPlanId(planId);
   } catch {
-    return NextResponse.json({ ok: false, error: "plano inválido" }, { status: 400 });
+    return fail('BAD_REQUEST', { requestId });
   }
 
   const sessao = await prisma.sessaoPagamento.findUnique({ where: { token } });
-  if (!sessao) return NextResponse.json({ ok: false, error: "sessão não encontrada" }, { status: 404 });
+  if (!sessao) return fail('NOT_FOUND', { requestId, status: 404 });
 
-  // TODO: integrar PSP real (ex.: Pagar.me)
   const pix = {
     chargeId: `stub_charge_${Date.now()}`,
     orderId: `stub_order_${Date.now()}`,
-    qrCode: "STUB_QR_CODE_DATA",
-    pixCopiaECola: "STUB_PIX_COPIA_E_COLA",
+    qrCode: 'STUB_QR_CODE_DATA',
+    pixCopiaECola: 'STUB_PIX_COPIA_E_COLA',
   };
 
   await prisma.sessaoPagamento.update({
@@ -37,10 +49,10 @@ export async function POST(req) {
       planoMinutos: PLANS[planId].minutes,
       chargeId: pix.chargeId,
       orderId: pix.orderId,
-      status: "PENDING",
+      status: 'PENDING',
       expiresAt: new Date(Date.now() + 30 * 60 * 1000),
     },
   });
 
-  return NextResponse.json({ ok: true, ...pix });
+  return ok(pix, { requestId });
 }

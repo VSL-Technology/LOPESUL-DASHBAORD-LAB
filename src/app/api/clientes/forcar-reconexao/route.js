@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import prisma from "@/lib/prisma";
-import { validarTokenParaReconeccao } from "@/lib/clientToken";
-import { liberarAcessoInteligente } from "@/lib/liberarAcesso"; // vamos criar função wrapper
-import { logger } from "@/lib/logger";
-import { recordApiMetric } from "@/lib/metrics/index";
-import { checkInternalAuth } from "@/lib/security/internalAuth";
+import { z } from 'zod';
+import { ok, fail } from '@/lib/api/response';
+import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
+import { validarTokenParaReconeccao } from '@/lib/clientToken';
+import { liberarAcessoInteligente } from '@/lib/liberarAcesso';
+import { logger } from '@/lib/logger';
+import { recordApiMetric } from '@/lib/metrics/index';
+import prisma from '@/lib/prisma';
+import { rateLimitOrThrow } from '@/lib/security/rateLimit';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 const BodySchema = z.object({
   token: z.string().min(8),
@@ -15,88 +17,68 @@ const BodySchema = z.object({
 
 export async function POST(req) {
   const started = Date.now();
-  if (!checkInternalAuth(req)) {
-    logger.warn({}, "[forcar-reconexao] tentativa sem auth");
-    recordApiMetric("clientes_forcar_reconexao", { durationMs: Date.now() - started, ok: false });
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
+  const requestId = getOrCreateRequestId(req);
+
+  const auth = await requireMutationAuth(req, { role: 'MASTER', requestId });
+  if (auth instanceof Response) return auth;
+
+  const limited = await rateLimitOrThrow(req, {
+    name: 'clientes_forcar_reconexao',
+    limit: 10,
+    windowMs: 60_000,
+    requestId,
+  });
+  if (limited) return limited;
 
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = BodySchema.safeParse(body);
     if (!parsed.success) {
-      logger.warn({ issues: parsed.error.issues }, "[forcar-reconexao] payload inválido");
-      recordApiMetric("clientes_forcar_reconexao", { durationMs: Date.now() - started, ok: false });
-      return NextResponse.json(
-        { error: "token e ipAtual são obrigatórios" },
-        { status: 400 }
-      );
+      logger.warn({ route: 'api_clientes_forcar_reconexao', requestId, issues: parsed.error.issues }, '[forcar-reconexao] payload inválido');
+      recordApiMetric('clientes_forcar_reconexao', { durationMs: Date.now() - started, ok: false });
+      return fail('BAD_REQUEST', { requestId });
     }
+
     const { token, ipAtual, macAtual } = parsed.data;
 
-    const validacao = await validarTokenParaReconeccao({
-      token,
-      ipAtual,
-      macAtual
-    });
-
+    const validacao = await validarTokenParaReconeccao({ token, ipAtual, macAtual });
     if (!validacao.ok || !validacao.pedido) {
-      logger.warn({ token }, "[forcar-reconexao] token inválido");
-      recordApiMetric("clientes_forcar_reconexao", { durationMs: Date.now() - started, ok: false });
-      return NextResponse.json(
-        { error: "Token inválido, expirado ou pedido não pago", detalhe: validacao },
-        { status: 400 }
-      );
+      logger.warn({ route: 'api_clientes_forcar_reconexao', requestId }, '[forcar-reconexao] token inválido');
+      recordApiMetric('clientes_forcar_reconexao', { durationMs: Date.now() - started, ok: false });
+      return fail('BAD_REQUEST', { requestId });
     }
 
     const pedido = validacao.pedido;
 
-    // Descobre o device / mikId pela tabela que você já tem
-    // Aqui vou assumir que o Pedido tem mikId ou deviceId linkado a Dispositivo
-  let mikId = pedido.mikId || null;
-
+    let mikId = pedido.mikId || null;
     if (!mikId && pedido.deviceId) {
-      const device = await prisma.dispositivo.findUnique({
-        where: { id: pedido.deviceId }
-      });
+      const device = await prisma.dispositivo.findUnique({ where: { id: pedido.deviceId } });
       mikId = device?.mikId ?? null;
     }
 
     if (!mikId) {
-      recordApiMetric("clientes_forcar_reconexao", { durationMs: Date.now() - started, ok: false });
-      return NextResponse.json(
-        { error: "Não foi possível determinar o Mikrotik desse pedido" },
-        { status: 500 }
-      );
+      recordApiMetric('clientes_forcar_reconexao', { durationMs: Date.now() - started, ok: false });
+      return fail('INTERNAL_ERROR', { requestId });
     }
 
-    // Liberação via relay inteligente
     const libResult = await liberarAcessoInteligente({
       pedidoId: pedido.id,
       mikId,
       ipAtual,
       macAtual,
-      modo: "RECONEXAO"
+      modo: 'RECONEXAO',
     });
 
     if (!libResult.ok) {
-      logger.error({ detalhe: libResult }, "[forcar-reconexao] falha liberar");
-      recordApiMetric("clientes_forcar_reconexao", { durationMs: Date.now() - started, ok: false });
-      return NextResponse.json(
-        { error: "Falha ao liberar no Mikrotik", detalhe: libResult },
-        { status: 500 }
-      );
+      logger.error({ route: 'api_clientes_forcar_reconexao', requestId }, '[forcar-reconexao] falha liberar');
+      recordApiMetric('clientes_forcar_reconexao', { durationMs: Date.now() - started, ok: false });
+      return fail('INTERNAL_ERROR', { requestId });
     }
 
-    // Garante a SessaoAtiva no banco (compatível com o schema `SessaoAtiva`)
-    const minutosPadrao = 120; // padrão usado em outros serviços
+    const minutosPadrao = 120;
     const agora = new Date();
     const expiraEm = new Date(agora.getTime() + minutosPadrao * 60 * 1000);
 
-    // tenta achar sessão existente pelo pedidoId
     let sessao = await prisma.sessaoAtiva.findFirst({ where: { pedidoId: pedido.id } });
     if (sessao) {
       sessao = await prisma.sessaoAtiva.update({
@@ -106,7 +88,7 @@ export async function POST(req) {
           macCliente: macAtual ?? null,
           ativo: true,
           expiraEm,
-        }
+        },
       });
     } else {
       sessao = await prisma.sessaoAtiva.create({
@@ -118,27 +100,26 @@ export async function POST(req) {
           plano: pedido.description || 'Acesso',
           inicioEm: agora,
           expiraEm,
-          ativo: true
-        }
+          ativo: true,
+        },
       });
     }
 
-    recordApiMetric("clientes_forcar_reconexao", { durationMs: Date.now() - started, ok: true });
-    return NextResponse.json({
-      ok: true,
-      status: "LIBERADO",
-      pedidoId: pedido.id,
-      mikId,
-      ip: ipAtual,
-      mac: macAtual ?? null,
-      sessao
-    });
-  } catch (err) {
-    logger.error({ error: err?.message || err }, "[forcar-reconexao] erro");
-    recordApiMetric("clientes_forcar_reconexao", { durationMs: Date.now() - started, ok: false });
-    return NextResponse.json(
-      { error: "Erro interno", detalhe: err && err.message ? err.message : String(err) },
-      { status: 500 }
+    recordApiMetric('clientes_forcar_reconexao', { durationMs: Date.now() - started, ok: true });
+    return ok(
+      {
+        status: 'LIBERADO',
+        pedidoId: pedido.id,
+        mikId,
+        ip: ipAtual,
+        mac: macAtual ?? null,
+        sessao,
+      },
+      { requestId }
     );
+  } catch (err) {
+    logger.error({ err, requestId, route: 'api_clientes_forcar_reconexao' }, '[forcar-reconexao] erro');
+    recordApiMetric('clientes_forcar_reconexao', { durationMs: Date.now() - started, ok: false });
+    return fail('INTERNAL_ERROR', { requestId });
   }
 }

@@ -21,6 +21,7 @@ jobs:
             cd /opt/lopesul/apps/dashboard
             git fetch origin
             git reset --hard origin/main
+            bash scripts/ci/deny_leaky_errors.sh
             docker compose down
             docker compose build
             docker compose up -d
@@ -28,7 +29,10 @@ jobs:
             echo "Aguardando container iniciar..."
             sleep 8
 
-            echo "Testando health dentro do container..."
-            docker exec dashboard-real curl -f http://localhost:3000/api/health || exit 1
+            echo "Testando live dentro do container..."
+            docker exec dashboard-real curl -fsS http://localhost:3000/api/health/live > /dev/null || exit 1
+
+            echo "Testando ready dentro do container..."
+            docker exec dashboard-real curl -fsS http://localhost:3000/api/health/ready > /dev/null || exit 1
 
             echo "Dashboard saudável."

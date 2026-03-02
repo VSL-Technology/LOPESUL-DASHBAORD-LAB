@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getRequestAuth } from "@/lib/auth/context";
 import { relayProxyFetch } from "@/lib/relayProxy";
+import { getOrCreateRequestId } from "@/lib/security/requestId";
 
 const RATE_LIMIT_WINDOW_MS = 30_000;
 const RATE_LIMIT_MAX = 10;
@@ -20,6 +21,7 @@ function rateLimit(key) {
 }
 
 export async function GET(req) {
+  const requestId = getOrCreateRequestId(req);
   const auth = await getRequestAuth();
   if (!auth?.session || !auth.isMaster) {
     return NextResponse.json({ ok: false, code: "forbidden" }, { status: 403 });
@@ -44,6 +46,7 @@ export async function GET(req) {
 
   const r = await relayProxyFetch(`/relay/identity/status?sid=${encodeURIComponent(sid)}`, {
     headers: { "X-Relay-Internal": RELAY_INTERNAL_TOKEN },
+    requestId,
   });
 
   if (!r.ok || !r.json?.ok) {

@@ -6,8 +6,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getRequestAuth } from '@/lib/auth/context';
 import { relayIdentityStatus } from '@/lib/relayClient';
+import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export async function GET(_req, context) {
+  const requestId = getOrCreateRequestId(_req);
   try {
     const auth = await getRequestAuth();
     if (!auth.session) {
@@ -32,7 +34,7 @@ export async function GET(_req, context) {
     }
 
     const identity = roteador.nome || roteador.id;
-    const status = await relayIdentityStatus(identity);
+    const status = await relayIdentityStatus(identity, { requestId });
 
     const statusMikrotik =
       status.state === 'OK' ? 'ONLINE' :
