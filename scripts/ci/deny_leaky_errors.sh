@@ -29,7 +29,7 @@ TARGETS=(
   src/app/api/webhooks/pagarme/route.js
 )
 
-if rg -n "NextResponse\.json\([^\n]*err\.(message|stack)|Response\.json\([^\n]*err\.(message|stack)|error:\s*err\.(message|stack)|detail:\s*err\.(message|stack)|raw:\s*err" "${TARGETS[@]}"; then
+if grep -nE "NextResponse\.json\([^\n]*err\.(message|stack)|Response\.json\([^\n]*err\.(message|stack)|error:[[:space:]]*err\.(message|stack)|detail:[[:space:]]*err\.(message|stack)|raw:[[:space:]]*err" "${TARGETS[@]}"; then
   echo "[deny] found potentially leaky error response"
   exit 1
 fi

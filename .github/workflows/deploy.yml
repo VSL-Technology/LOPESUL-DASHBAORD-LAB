@@ -26,13 +26,24 @@ jobs:
             docker compose build
             docker compose up -d
 
-            echo "Aguardando container iniciar..."
-            sleep 8
+      - name: Wait for dashboard health
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "Waiting for dashboard container to become healthy..."
 
-            echo "Testando live dentro do container..."
-            docker exec dashboard-real curl -fsS http://localhost:3000/api/health/live > /dev/null || exit 1
+            for i in {1..30}; do
+              if docker exec dashboard-real curl -fsS http://127.0.0.1:3000/api/health/live >/dev/null; then
+                echo "Dashboard is healthy."
+                exit 0
+              fi
+              echo "Still waiting... attempt $i"
+              sleep 2
+            done
 
-            echo "Testando ready dentro do container..."
-            docker exec dashboard-real curl -fsS http://localhost:3000/api/health/ready > /dev/null || exit 1
-
-            echo "Dashboard saudável."
+            echo "Dashboard did not become healthy after 60 seconds."
+            docker logs dashboard-real --tail 100
+            exit 1
