@@ -55,6 +55,7 @@ export async function GET(req) {
 
     // Busca frotas com dispositivos, vendas recentes e roteador vinculado
     const frotas = await prisma.frota.findMany({
+      where: { deletedAt: null },
       orderBy: { nome: 'asc' },
       include: {
         dispositivos: true,

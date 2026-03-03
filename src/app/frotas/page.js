@@ -25,6 +25,7 @@ export default function FrotasPage() {
   const [loading, setLoading] = useState(true);
   const [roteadores, setRoteadores] = useState([]);
   const [roteadoresErro, setRoteadoresErro] = useState('');
+  const [operadorId, setOperadorId] = useState('');
 
   // busca inicial da lista de frotas
   useEffect(() => {
@@ -42,6 +43,22 @@ export default function FrotasPage() {
       }
     }
     fetchFrotas();
+  }, []);
+
+  // Carrega id do operador autenticado para trilha de auditoria no DELETE
+  useEffect(() => {
+    async function fetchOperador() {
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        const currentId = data?.user?.id;
+        if (currentId) setOperadorId(String(currentId));
+      } catch {
+        // Sem bloqueio da UI caso não consiga resolver o operador no cliente
+      }
+    }
+    fetchOperador();
   }, []);
 
   // Carrega lista de roteadores para vincular às frotas
@@ -109,6 +126,31 @@ export default function FrotasPage() {
     } catch (e) {
       console.error('Erro ao vincular roteador à frota:', e);
       alert('Erro ao vincular roteador à frota: ' + String(e?.message || e));
+    }
+  }
+
+  async function handleRemove(frotaId) {
+    const confirmed = confirm(
+      'Tem certeza? Essa ação desativará a frota permanentemente.'
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/frotas/${frotaId}`, {
+        method: 'DELETE',
+        headers: operadorId ? { 'x-operador-id': operadorId } : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data?.error || 'Erro ao remover frota');
+        return;
+      }
+
+      setFrotas((prev) => (prev ?? []).filter((f) => f.id !== frotaId));
+    } catch (error) {
+      console.error('Erro ao remover frota:', error);
+      alert('Erro ao remover frota');
     }
   }
 
@@ -228,6 +270,13 @@ export default function FrotasPage() {
                     {perda !== null && ` • Perda: ${perda}%`}
                   </p>
                 )}
+
+                <button
+                  className="mt-4 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded"
+                  onClick={() => handleRemove(frota.id)}
+                >
+                  Remover Frota
+                </button>
               </div>
             );
           })}

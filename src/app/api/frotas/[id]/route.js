@@ -170,6 +170,69 @@ export async function PUT(req, context) {
   }
 }
 
+/**
+ * DELETE /api/frotas/[id]
+ * Remove uma frota com soft delete, preservando dados financeiros.
+ */
+export async function DELETE(req, context) {
+  const auth = await requireMutationAuth(req, { role: 'MASTER' });
+  if (auth instanceof Response) return auth;
+
+  try {
+    const { id } = await context.params;
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return json({ error: 'ID inválido' }, 400);
+
+    const headerOperadorId = req.headers.get('x-operador-id');
+    const operadorId = String(auth?.session?.sub || headerOperadorId || '').trim() || null;
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const ip = String(forwardedFor || '')
+      .split(',')[0]
+      ?.trim() || null;
+
+    const frota = await prisma.frota.findUnique({
+      where: { id: cleanId },
+      include: { vendas: true },
+    });
+
+    if (!frota) {
+      return json({ error: 'Frota não encontrada' }, 404);
+    }
+
+    if ((frota.vendas ?? []).length > 0) {
+      return json(
+        { error: 'Não é permitido remover frota com vendas registradas.' },
+        400
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.frota.update({
+        where: { id: cleanId },
+        data: {
+          deletedAt: new Date(),
+          deletedById: operadorId,
+          status: 'INATIVO',
+        },
+      });
+
+      await tx.auditoria.create({
+        data: {
+          entidade: 'FROTA',
+          entidadeId: cleanId,
+          acao: 'SOFT_DELETE',
+          operadorId,
+          ip,
+        },
+      });
+    });
+
+    return json({ success: true }, 200);
+  } catch (error) {
+    return json({ error: error?.message || 'Erro ao remover frota' }, 400);
+  }
+}
+
 /* ---------- Helpers ---------- */
 function json(payload, status = 200) {
   return applySecurityHeaders(NextResponse.json(payload, { status }), { noStore: true });

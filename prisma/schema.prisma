@@ -9,12 +9,14 @@ datasource db {
 }
 
 model Operador {
-  role     String?
-  id       String   @id @default(uuid())
-  nome     String   @unique @map("usuario")
-  senha    String
-  ativo    Boolean  @default(true)
-  criadoEm DateTime @default(now()) @map("createdAt")
+  role            String?
+  id              String      @id @default(uuid())
+  nome            String      @unique @map("usuario")
+  senha           String
+  ativo           Boolean     @default(true)
+  criadoEm        DateTime    @default(now()) @map("createdAt")
+  frotasDeletadas Frota[]     @relation("FrotaDeletedBy")
+  auditorias      Auditoria[]
 
   @@map("operadores")
 }
@@ -31,8 +33,12 @@ model Frota {
   dispositivos Dispositivo[]
   roteador     Roteador?     @relation(fields: [roteadorId], references: [id])
   vendas       Venda[]
+  deletedAt    DateTime?
+  deletedById  String?
+  deletedBy    Operador?     @relation("FrotaDeletedBy", fields: [deletedById], references: [id])
 
   @@index([criadoEm])
+  @@index([deletedById])
 }
 
 model Venda {
@@ -215,15 +221,29 @@ model WebhookLog {
 }
 
 model WebhookEvent {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   provider    String
   eventId     String
   eventType   String?
-  receivedAt  DateTime @default(now())
+  receivedAt  DateTime  @default(now())
   processedAt DateTime?
-  status      String   @default("RECEIVED")
+  status      String    @default("RECEIVED")
   payloadHash String?
-  uniqueKey   String   @unique
+  uniqueKey   String    @unique
+}
+
+model Auditoria {
+  id         String    @id @default(cuid())
+  entidade   String
+  entidadeId String
+  acao       String
+  operadorId String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+  operador   Operador? @relation(fields: [operadorId], references: [id])
+
+  @@index([entidade, entidadeId])
+  @@index([operadorId])
 }
 
 model AuditLog {

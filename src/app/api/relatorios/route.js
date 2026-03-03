@@ -91,6 +91,7 @@ export async function GET(req) {
       qtdExpirados,
     ] = await Promise.all([
       prisma.frota.findMany({
+        where: { deletedAt: null },
         orderBy: { criadoEm: 'desc' },
         include: { _count: { select: { dispositivos: true } } },
       }).catch(() => []),
