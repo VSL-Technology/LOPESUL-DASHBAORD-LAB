@@ -1,27 +1,82 @@
 // src/lib/mikrotik.js
+import { RouterOSAPI } from 'routeros-api';
 import { relayFetchSigned } from './relayFetchSigned';
-import {
-  conectarMikrotik as conectarMikrotikBase,
-  resolveMikrotikConfig,
-} from '../../lib/mikrotik.js';
+
+const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
+
+function toBoolean(value) {
+  if (value === undefined || value === null) return false;
+  return TRUE_VALUES.has(String(value).trim().toLowerCase());
+}
+
+function toPositiveNumber(value, fallback) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return fallback;
+}
 
 function resolveRouterConfig(router = {}) {
-  const options = {
-    host: router.host || process.env.MIKROTIK_HOST,
-    user: router.user || process.env.MIKROTIK_USER,
-    port:
-      router.port ??
-      process.env.MIKROTIK_PORT ??
-      process.env.PORTA_MIKROTIK ??
-      8728,
-    timeout:
-      router.timeout ??
-      process.env.MIKROTIK_TIMEOUT_MS ??
-      process.env.MIKROTIK_TIMEOUT ??
-      5000,
-  };
+  const host = (router.host || process.env.MIKROTIK_HOST || '').trim();
+  const user = (router.user || process.env.MIKROTIK_USER || '').trim();
+  const password = (
+    router.pass ||
+    router.password ||
+    router.userPass ||
+    process.env.MIKROTIK_PASS ||
+    ''
+  ).toString();
 
-  return resolveMikrotikConfig(options);
+  if (!host || !user || !password) {
+    throw new Error('[MIKROTIK] credenciais incompletas para conexão');
+  }
+
+  const routerPort = router.port ?? process.env.PORTA_MIKROTIK ?? process.env.MIKROTIK_PORT;
+  const envSsl = toBoolean(process.env.MIKROTIK_SSL);
+  const explicitSsl =
+    typeof router.secure === 'boolean'
+      ? router.secure
+      : typeof router.ssl === 'boolean'
+      ? router.ssl
+      : envSsl;
+  const defaultPort = explicitSsl ? 8729 : 8728;
+  const timeoutFallback =
+    router.timeout ?? process.env.MIKROTIK_TIMEOUT_MS ?? process.env.MIKROTIK_TIMEOUT ?? 5000;
+
+  return {
+    host,
+    user,
+    password,
+    port: toPositiveNumber(routerPort ?? defaultPort, defaultPort),
+    timeout: toPositiveNumber(timeoutFallback, 5000),
+  };
+}
+
+export async function conectarMikrotik(router = {}) {
+  const cfg = resolveRouterConfig(router);
+  const conn = new RouterOSAPI({
+    host: cfg.host,
+    user: cfg.user,
+    password: cfg.password,
+    port: cfg.port,
+    timeout: cfg.timeout,
+  });
+
+  try {
+    console.log('[MIKROTIK] conectando em', `${cfg.host}:${cfg.port}`);
+    await conn.connect();
+    console.log('[MIKROTIK] conexão estabelecida com sucesso');
+    return conn;
+  } catch (error) {
+    console.error('[MIKROTIK] erro ao conectar no MikroTik:', error?.message || error);
+    try {
+      conn.close();
+    } catch (closeErr) {
+      console.warn('[MIKROTIK] falha ao fechar conexão após erro:', closeErr?.message || closeErr);
+    }
+    throw new Error('Falha na conexão com MikroTik');
+  }
 }
 
 function closeConnection(conn) {
@@ -42,11 +97,6 @@ async function executeDirectCommands({ router, sentences, label }) {
   } finally {
     closeConnection(conn);
   }
-}
-
-export async function conectarMikrotik(router = {}) {
-  const cfg = resolveRouterConfig(router);
-  return conectarMikrotikBase(cfg);
 }
 
 /** ============================

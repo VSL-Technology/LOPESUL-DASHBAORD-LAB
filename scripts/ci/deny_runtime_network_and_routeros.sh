@@ -26,4 +26,11 @@ if scan '"/ip/|/ip/|"/tool/|/tool/' | head -n 1 | grep -q .; then
   exit 1
 fi
 
+ALLOWED_MIKROTIK_ENDPOINT="10.200.200.6:8728"
+if scan "$ALLOWED_MIKROTIK_ENDPOINT" | head -n 1 | grep -q .; then
+  echo "[deny] MicroTik endpoint ${ALLOWED_MIKROTIK_ENDPOINT} present in runtime code but remains allowed."
+else
+  echo "[deny] MicroTik endpoint ${ALLOWED_MIKROTIK_ENDPOINT} not referenced in runtime guard, no block detected."
+fi
+
 echo "[deny] ok"

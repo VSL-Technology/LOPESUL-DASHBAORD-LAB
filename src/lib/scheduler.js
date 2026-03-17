@@ -56,10 +56,11 @@ async function expiraPendentes(now) {
 
   // pedidos novos
   if (hasModel('pedido')) {
+    const limite = new Date(now.getTime() - 10 * 60 * 1000);
     await prisma.pedido.updateMany({
       where: {
         status: 'PENDING',
-        // se tiver expiresAt no schema, usar; senão, usa createdAt + janela genérica
+        createdAt: { lt: limite },
       },
       data: { status: 'EXPIRED' },
     }).catch(() => {});
