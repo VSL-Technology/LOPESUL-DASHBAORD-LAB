@@ -72,11 +72,9 @@ function validateRelayBase(raw?: string) {
     }
 
     const defaultAllowedHosts = ['localhost', '127.0.0.1', '::1'];
-    const allowedHosts = new Set([
-      ...defaultAllowedHosts,
-      ...sanitizeAllowedHosts(process.env.RELAY_ALLOWED_HOSTS),
-    ]);
-    if (!allowedHosts.has(url.hostname)) {
+    const customAllowed = sanitizeAllowedHosts(process.env.RELAY_ALLOWED_HOSTS);
+    const allowedHosts = new Set([...defaultAllowedHosts, ...customAllowed]);
+    if (!allowedHosts.has('*') && !allowedHosts.has(url.hostname)) {
       throw new Error(`Host não permitido em RELAY_URL: ${url.hostname}`);
     }
 
