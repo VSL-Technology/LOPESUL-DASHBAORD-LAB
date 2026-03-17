@@ -11,6 +11,7 @@ import { getClientIp } from "@/lib/security/requestUtils";
 import { enforceRateLimit } from "@/lib/security/rateLimiter";
 import { verifyPagarmeSignature } from "@/lib/security/pagarmeWebhook";
 import { auditLog } from '@/lib/auditLogger';
+import { liberarCliente } from '@/lib/mikrotikLiberacao';
 import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export const runtime = "nodejs";
@@ -453,6 +454,34 @@ export async function POST(req) {
           logger.warn(
             { chargeId: basics.chargeId },
             "[WEBHOOK] Sem orderCode para criar Charge"
+          );
+        }
+      }
+
+      if (mapped === "PAID" && basics.method === "PIX" && basics.orderCode) {
+        try {
+          const pedidoParaLiberar = await prisma.pedido.findFirst({
+            where: { code: basics.orderCode },
+            select: { ip: true },
+          });
+
+          const ipCliente = String(pedidoParaLiberar?.ip || '').trim();
+          if (ipCliente) {
+            await liberarCliente(ipCliente);
+            logger.info(
+              { orderCode: basics.orderCode, ip: ipCliente },
+              "[WEBHOOK] Cliente liberado automaticamente via PIX"
+            );
+          } else {
+            logger.warn(
+              { orderCode: basics.orderCode },
+              "[WEBHOOK] Pedido sem IP para liberação automática"
+            );
+          }
+        } catch (autoReleaseErr) {
+          logger.error(
+            { orderCode: basics.orderCode, error: autoReleaseErr?.message || autoReleaseErr },
+            "[WEBHOOK] Falha ao liberar cliente automático"
           );
         }
       }

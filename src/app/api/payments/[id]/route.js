@@ -73,7 +73,16 @@ export async function GET(req) {
       orderBy: { createdAt: 'desc' },
       take: take + 1, // pega 1 a mais para saber se tem próxima página
       ...(cursorObj && { cursor: cursorObj, skip: 1 }), // start after cursor
-      include: {
+      select: {
+        id: true,
+        code: true,
+        status: true,
+        method: true,
+        amount: true,
+        createdAt: true,
+        customerName: true,
+        customerEmail: true,
+        customerDoc: true,
         charges: {
           orderBy: { createdAt: 'desc' },
           take: 1, // última charge
@@ -85,18 +94,6 @@ export async function GET(req) {
             createdAt: true,
           },
         },
-      },
-      select: {
-        id: true,
-        code: true,
-        status: true,
-        method: true,
-        amount: true,
-        createdAt: true,
-        customerName: true,
-        customerEmail: true,
-        customerDoc: true,
-        charges: true,
       },
     });
 
