@@ -1,4 +1,21 @@
-import { conectarMikrotik } from './mikrotik';
+import { conectarMikrotik as conectarMikrotikImported } from './mikrotik';
+
+function resolveConectarMikrotik() {
+  if (typeof conectarMikrotikImported === 'function') {
+    return conectarMikrotikImported;
+  }
+
+  if (
+    conectarMikrotikImported &&
+    typeof conectarMikrotikImported.conectarMikrotik === 'function'
+  ) {
+    return conectarMikrotikImported.conectarMikrotik;
+  }
+
+  throw new Error(
+    'Função "conectarMikrotik" não está disponível a partir de "./mikrotik". Verifique as exports/imports.'
+  );
+}
 
 export async function liberarCliente(ip) {
   const ipAddress = String(ip || '').trim();
@@ -8,7 +25,8 @@ export async function liberarCliente(ip) {
 
   let conn;
   try {
-    conn = await conectarMikrotik();
+    const conectar = resolveConectarMikrotik();
+    conn = await conectar();
     console.log('🚀 Liberando cliente no MikroTik:', ipAddress);
     await conn.write('/ip/hotspot/ip-binding/add', [
       `=address=${ipAddress}`,
