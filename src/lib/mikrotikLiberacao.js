@@ -5,13 +5,6 @@ function resolveConectarMikrotik() {
     return conectarMikrotikImported;
   }
 
-  if (
-    conectarMikrotikImported &&
-    typeof conectarMikrotikImported.conectarMikrotik === 'function'
-  ) {
-    return conectarMikrotikImported.conectarMikrotik;
-  }
-
   throw new Error(
     'Função "conectarMikrotik" não está disponível a partir de "./mikrotik". Verifique as exports/imports.'
   );
