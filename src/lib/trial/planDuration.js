@@ -33,7 +33,8 @@ function normalizePlanDescriptor(plan) {
 }
 
 function parseHours(descriptor) {
-  const hoursRegex = /(\d+(?:[.,]\d+)?)\s*(h|hora|horas)/i;
+  if (descriptor.length > 128) return null;
+  const hoursRegex = /\b(\d+(?:[.,]\d+)?)(?:\s*)(h(?:oras?)?)\b/i;
   const match = descriptor.match(hoursRegex);
   if (!match) return null;
 
