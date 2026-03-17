@@ -3,6 +3,9 @@ import { RouterOSAPI } from 'routeros-api';
 import { relayFetchSigned } from './relayFetchSigned';
 
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
+const DEFAULT_TIMEOUT = 8000;
+const CONNECTION_ATTEMPTS = 3;
+const ATTEMPT_DELAY_MS = 1000;
 
 function toBoolean(value) {
   if (value === undefined || value === null) return false;
@@ -41,42 +44,68 @@ function resolveRouterConfig(router = {}) {
       ? router.ssl
       : envSsl;
   const defaultPort = explicitSsl ? 8729 : 8728;
-  const timeoutFallback =
-    router.timeout ?? process.env.MIKROTIK_TIMEOUT_MS ?? process.env.MIKROTIK_TIMEOUT ?? 5000;
+  const timeoutFallback = toPositiveNumber(
+    router.timeout ??
+      process.env.MIKROTIK_TIMEOUT ??
+      process.env.MIKROTIK_TIMEOUT_MS ??
+      DEFAULT_TIMEOUT,
+    DEFAULT_TIMEOUT
+  );
 
   return {
     host,
     user,
     password,
     port: toPositiveNumber(routerPort ?? defaultPort, defaultPort),
-    timeout: toPositiveNumber(timeoutFallback, 5000),
+    timeout: timeoutFallback,
   };
 }
 
 export async function conectarMikrotik(router = {}) {
   const cfg = resolveRouterConfig(router);
-  const conn = new RouterOSAPI({
-    host: cfg.host,
-    user: cfg.user,
-    password: cfg.password,
-    port: cfg.port,
-    timeout: cfg.timeout,
-  });
 
-  try {
-    console.log('[MIKROTIK] conectando em', `${cfg.host}:${cfg.port}`);
-    await conn.connect();
-    console.log('[MIKROTIK] conexão estabelecida com sucesso');
-    return conn;
-  } catch (error) {
-    console.error('[MIKROTIK] erro ao conectar no MikroTik:', error?.message || error);
+  for (let attempt = 1; attempt <= CONNECTION_ATTEMPTS; attempt += 1) {
+    const conn = new RouterOSAPI({
+      host: cfg.host,
+      user: cfg.user,
+      password: cfg.password,
+      port: cfg.port,
+      timeout: cfg.timeout,
+    });
+
     try {
-      conn.close();
-    } catch (closeErr) {
-      console.warn('[MIKROTIK] falha ao fechar conexão após erro:', closeErr?.message || closeErr);
+      console.log(
+        `[MIKROTIK] Tentando conectar ao MikroTik (tentativa ${attempt}) em ${cfg.host}:${cfg.port}`
+      );
+      await conn.connect();
+      console.log('[MIKROTIK] MikroTik conectado', {
+        host: cfg.host,
+        port: cfg.port,
+        attempt,
+      });
+      return conn;
+    } catch (error) {
+      console.error('[MIKROTIK] Falha na conexão MikroTik', {
+        attempt,
+        host: cfg.host,
+        error: error?.message || error,
+      });
+      try {
+        conn.close();
+      } catch (closeErr) {
+        console.warn('[MIKROTIK] falha ao fechar conexão após erro:', closeErr?.message || closeErr);
+      }
+
+      if (attempt === CONNECTION_ATTEMPTS) {
+        console.error('[MIKROTIK] Falha definitiva ao conectar no MikroTik');
+        throw new Error('Falha definitiva ao conectar no MikroTik');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, ATTEMPT_DELAY_MS));
     }
-    throw new Error('Falha na conexão com MikroTik');
   }
+
+  throw new Error('Falha definitiva ao conectar no MikroTik');
 }
 
 function closeConnection(conn) {
