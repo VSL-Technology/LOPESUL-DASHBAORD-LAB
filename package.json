@@ -25,6 +25,7 @@
     "prisma:validate": "prisma validate",
     "create:test-user": "node scripts/criar-usuario-teste.js",
     "populate:identity": "node scripts/populate-router-identity.mjs",
+    "trial:test": "node scripts/test/trial-engine.mjs",
     "check:runtime-guard": "bash scripts/ci/deny_runtime_network_and_routeros.sh"
   },
   "dependencies": {
