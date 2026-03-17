@@ -26,7 +26,6 @@ function buildTrialResponse(state = {}) {
 
   const isTrial = status === 'TRIAL';
   const isBlocked = status === 'BLOCKED';
-  const isPaid = status === 'PAID';
 
   return {
     status,
