@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 
-import { createRequire } from 'module';
-import { readFileSync } from 'fs';
-const require = createRequire(import.meta.url);
-const MikroNode = require('mikronode');
+import { execFile } from 'child_process';
+import { unlinkSync, writeFileSync } from 'fs';
+import { conectarMikrotik } from './lib/mikrotik.js';
 
 const MIKROTIK_HOST = process.env.MIKROTIK_HOST;
-const MIKROTIK_PORT = parseInt(process.env.MIKROTIK_PORT || '8728', 10);
+const MIKROTIK_PORT = Number(process.env.MIKROTIK_PORT || 8728);
 const MIKROTIK_USER = process.env.MIKROTIK_USER;
 const MIKROTIK_PASS = process.env.MIKROTIK_PASS;
 
@@ -14,21 +13,10 @@ if (!MIKROTIK_HOST || !MIKROTIK_USER || !MIKROTIK_PASS) {
   throw new Error('MIKROTIK_HOST/USER/PASS devem estar configurados no ambiente (.env)');
 }
 
-console.log('📤 Fazendo upload do redirect.html para o MikroTik\n');
-
-const device = MikroNode.getConnection(MIKROTIK_HOST, MIKROTIK_USER, MIKROTIK_PASS, {
-  port: MIKROTIK_PORT,
-  timeout: 10
-});
-
-device.connect().then(() => {
-  console.log('✅ Conectado ao MikroTik!\n');
-  
-  const channel = device.openChannel();
-  
-  // Ler o conteúdo do arquivo
-  const content = `<html>
+const content = `<!DOCTYPE html>
+<html>
 <head>
+<meta charset="utf-8">
 <meta http-equiv="refresh" content="0; url=https://cativo.lopesuldashboardwifi.com/pagamento.html?mac=$(mac)&ip=$(ip)&link-orig=$(link-orig-esc)">
 <title>Redirecionando...</title>
 </head>
@@ -36,68 +24,65 @@ device.connect().then(() => {
 <h2>Aguarde, redirecionando para o portal de pagamento...</h2>
 </body>
 </html>`;
-  
-  console.log('📝 Criando arquivo redirect.html via /file/set...');
-  
-  // MikroTik não tem comando direto para upload via API
-  // Precisamos usar FTP ou criar via SSH
-  console.log('\n⚠️  A API MikroTik não suporta upload direto de arquivos.');
-  console.log('   Vou usar FTP para fazer o upload...\n');
-  
-  device.close();
-  
-  // Vamos usar curl com FTP
-  const { exec } = require('child_process');
-  
-  exec(`echo '${content}' | curl -T - ftp://${MIKROTIK_HOST}/hotspot/redirect.html --user ${MIKROTIK_USER}:${MIKROTIK_PASS}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error('❌ Erro no upload FTP:', error.message);
-      
-      console.log('\n🔧 Tentando método alternativo via SFTP...\n');
-      
-      // Criar script expect para FTP interativo
-      const ftpScript = `#!/usr/bin/expect -f
-set timeout 30
-spawn ftp ${MIKROTIK_HOST}
-expect "Name"
-send "${MIKROTIK_USER}\\r"
-expect "Password:"
-send "${MIKROTIK_PASS}\\r"
-expect "ftp>"
-send "binary\\r"
-expect "ftp>"
-send "cd hotspot\\r"
-expect "ftp>"
-send "put /tmp/redirect.html redirect.html\\r"
-expect "ftp>"
-send "bye\\r"
-expect eof
-`;
-      
-      require('fs').writeFileSync('/tmp/ftp-upload.exp', ftpScript);
-      exec('chmod +x /tmp/ftp-upload.exp && /tmp/ftp-upload.exp', (err2, stdout2, stderr2) => {
-        if (err2) {
-          console.error('❌ Erro no SFTP:', err2.message);
-          console.log('\n📋 Execute manualmente na VPS:');
-          console.log('ftp 10.200.200.2');
-          console.log('login: admin');
-          console.log('password: (Enter)');
-          console.log('binary');
-          console.log('cd hotspot');
-          console.log('put /tmp/redirect.html redirect.html');
-          console.log('bye');
-        } else {
-          console.log('✅ Upload realizado com sucesso!');
-          console.log(stdout2);
+
+function runCurlUpload(filePath) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'curl',
+      [
+        '--fail',
+        '-sS',
+        '-T',
+        filePath,
+        `ftp://${MIKROTIK_HOST}/hotspot/redirect.html`,
+        '--user',
+        `${MIKROTIK_USER}:${MIKROTIK_PASS}`,
+      ],
+      (error, stdout, stderr) => {
+        if (error) {
+          return reject(
+            new Error(stderr?.trim() || stdout?.trim() || error.message || 'Erro no upload FTP')
+          );
         }
-      });
-    } else {
-      console.log('✅ Upload realizado com sucesso via FTP!');
-      console.log(stdout);
-    }
+        resolve(stdout);
+      }
+    );
   });
-  
-}).catch(err => {
-  console.error('❌ Erro ao conectar:', err.message);
-  process.exit(1);
-});
+}
+
+async function main() {
+  const tempFile = '/tmp/redirect.html';
+  let conn = null;
+
+  try {
+    console.log('📤 Fazendo upload do redirect.html para o MikroTik\n');
+    conn = await conectarMikrotik({
+      host: MIKROTIK_HOST,
+      user: MIKROTIK_USER,
+      port: MIKROTIK_PORT,
+      timeout: 5000,
+    });
+    conn.close();
+    conn = null;
+
+    writeFileSync(tempFile, content, 'utf8');
+    await runCurlUpload(tempFile);
+    console.log('✅ Upload realizado com sucesso via FTP!');
+  } catch (error) {
+    console.error('❌ Falha no upload:', error?.message || error);
+    console.log('\n📋 Faça o upload manual:');
+    console.log(`1. Conecte via FTP em ${MIKROTIK_HOST}`);
+    console.log('2. Entre na pasta hotspot');
+    console.log('3. Envie o arquivo redirect.html');
+    process.exitCode = 1;
+  } finally {
+    try {
+      if (conn) conn.close();
+    } catch {}
+    try {
+      unlinkSync(tempFile);
+    } catch {}
+  }
+}
+
+await main();
