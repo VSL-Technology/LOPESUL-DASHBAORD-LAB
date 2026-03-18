@@ -33,10 +33,7 @@ jobs:
             cd /opt/lopesul/apps/dashboard
             git fetch origin
             git reset --hard origin/main
-            bash scripts/ci/deny_leaky_errors.sh
-            docker compose down
-            docker compose build
-            docker compose up -d
+            bash scripts/deploy-safe.sh
 
       - name: Wait for dashboard health
         uses: appleboy/ssh-action@v1.2.0
