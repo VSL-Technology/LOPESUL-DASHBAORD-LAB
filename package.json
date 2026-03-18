@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev --port 3000 --hostname 0.0.0.0",
-    "build": "npm run check:runtime-guard && next build",
+    "build": "npm run check:runtime-guard && next build --webpack",
     "type-check": "tsc --noEmit",
     "lint": "NODE_OPTIONS='--require ./scripts/eslint-patch-shim.js' eslint \"src/app/api/**/*.{js,ts,tsx}\" \"src/lib/**/*.{js,ts,tsx}\"",
     "format": "prettier --write src/",
