@@ -11,7 +11,8 @@ import { getClientIp } from "@/lib/security/requestUtils";
 import { enforceRateLimit } from "@/lib/security/rateLimiter";
 import { verifyPagarmeSignature } from "@/lib/security/pagarmeWebhook";
 import { auditLog } from '@/lib/auditLogger';
-import { liberarCliente } from '@/lib/mikrotikLiberacao';
+import { ensureHotspotAccessAuthorized } from '@/lib/hotspotAccess';
+import { resolveClientIp, resolveClientMac } from '@/lib/clientNetworkIdentity';
 import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export const runtime = "nodejs";
@@ -210,6 +211,49 @@ async function markPaidAndRelease(orderCode, ctx = {}) {
   if (!routerInfo || !routerInfo.router || !routerInfo.router.host) {
     logger.error({ orderCode }, "[WEBHOOK] Router inválido ou sem host");
     return;
+  }
+
+  const targetHost = routerInfo.router.host;
+  const targetUser = routerInfo.router.user;
+  const targetPass = routerInfo.router.pass;
+  const targetPort = routerInfo.router.port || 8728;
+
+  const identityContext = {
+    ip,
+    clientIp: ctx.clientIp,
+    mac: deviceMac,
+  };
+
+  const resolvedIp = resolveClientIp(identityContext);
+  const resolvedMac = resolveClientMac(identityContext);
+
+  if (!resolvedIp) {
+    logger.error({ orderCode, ip, mac: deviceMac }, "[WEBHOOK] hotspot.release.missing-ip");
+    return;
+  }
+
+  logger.info({ orderCode, ip: resolvedIp }, "[WEBHOOK] payment.approved");
+
+  try {
+    logger.info({ orderCode, ip: resolvedIp, host: targetHost }, "[WEBHOOK] hotspot.release.triggered");
+    const releaseResult = await ensureHotspotAccessAuthorized({
+      host: targetHost,
+      user: targetUser,
+      pass: targetPass,
+      port: targetPort,
+      ip: resolvedIp,
+      mac: resolvedMac || undefined,
+      comment: `Pagamento aprovado - pedido ${pedido.id}`,
+    });
+    logger.info(
+      { orderCode, ip: resolvedIp, host: targetHost, result: releaseResult },
+      "[WEBHOOK] hotspot.release.success"
+    );
+  } catch (releaseErr) {
+    logger.error(
+      { orderCode, ip: resolvedIp, host: targetHost, error: releaseErr?.message || releaseErr },
+      "[WEBHOOK] hotspot.release.error"
+    );
   }
 
   try {
