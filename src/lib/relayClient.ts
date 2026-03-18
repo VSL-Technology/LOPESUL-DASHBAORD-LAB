@@ -157,6 +157,8 @@ async function relaySignedCall<T>(path: string, init?: RequestInit & { requestId
   return out.data as T;
 }
 
+export { relaySignedCall };
+
 // STATUS (fonte da verdade do roteador)
 export async function relayIdentityStatus(
   identity: string,
