@@ -25,6 +25,13 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
+echo "🔎 Validando sintaxe do .env..."
+
+if ! bash -n "$ENV_FILE" >/dev/null 2>&1; then
+  echo "❌ ERRO: .env com sintaxe inválida"
+  exit 1
+fi
+
 echo "🔎 Validando variáveis obrigatórias..."
 
 source "$ENV_FILE"
