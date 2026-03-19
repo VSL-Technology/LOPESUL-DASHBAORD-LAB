@@ -8,13 +8,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum DeviceAccessStatus {
-  TRIAL
-  BLOCKED
-  PAID
-  EXPIRED
-}
-
 model Operador {
   role            String?
   id              String      @id @default(uuid())
@@ -22,8 +15,8 @@ model Operador {
   senha           String
   ativo           Boolean     @default(true)
   criadoEm        DateTime    @default(now()) @map("createdAt")
-  frotasDeletadas Frota[]     @relation("FrotaDeletedBy")
   auditorias      Auditoria[]
+  frotasDeletadas Frota[]     @relation("FrotaDeletedBy")
 
   @@map("operadores")
 }
@@ -37,12 +30,12 @@ model Frota {
   status       FrotaStatus   @default(ATIVO)
   observacoes  String?
   roteadorId   String?       @unique
-  dispositivos Dispositivo[]
-  roteador     Roteador?     @relation(fields: [roteadorId], references: [id])
-  vendas       Venda[]
   deletedAt    DateTime?
   deletedById  String?
+  dispositivos Dispositivo[]
   deletedBy    Operador?     @relation("FrotaDeletedBy", fields: [deletedById], references: [id])
+  roteador     Roteador?     @relation(fields: [roteadorId], references: [id])
+  vendas       Venda[]
 
   @@index([criadoEm])
   @@index([deletedById])
@@ -295,6 +288,13 @@ model AuditLog {
   @@index([createdAt])
   @@index([event])
   @@map("audit_log")
+}
+
+enum DeviceAccessStatus {
+  TRIAL
+  BLOCKED
+  PAID
+  EXPIRED
 }
 
 enum FrotaStatus {
