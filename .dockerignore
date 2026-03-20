@@ -4,9 +4,12 @@
 .env
 .env.*
 .next
+.turbo
+.vercel
 coverage
 node_modules
 npm-debug.log*
+*.log
 tsconfig.tsbuildinfo
 RELAY-CEREBRO-INFRA
 relay
