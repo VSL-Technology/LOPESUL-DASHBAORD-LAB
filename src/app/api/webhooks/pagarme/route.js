@@ -3,16 +3,17 @@ import crypto from "node:crypto";
 import { ok, fail } from '@/lib/api/response';
 import prisma from "@/lib/prisma";
 // Backend must NOT call Mikrotik directly. Relay is the single actor that
-// performs operational actions. We only mark orders as paid and emit a
-// release request event (audit) for the Relay to process.
-import { requireDeviceRouter } from "@/lib/device-router";
+// performs operational actions. We only mark orders as paid and ask the
+// Relay to authorize the session/device.
+import { findDeviceRecord } from "@/lib/device-router";
 import { logger } from "@/lib/logger";
 import { getClientIp } from "@/lib/security/requestUtils";
 import { enforceRateLimit } from "@/lib/security/rateLimiter";
 import { verifyPagarmeSignature } from "@/lib/security/pagarmeWebhook";
 import { auditLog } from '@/lib/auditLogger';
-import { liberarCliente } from '@/lib/mikrotik';
 import { getOrCreateRequestId } from '@/lib/security/requestId';
+import callRelay from "@/lib/relayClient";
+import { obterTokenAtivoPorPedido } from "@/lib/clientToken";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -125,7 +126,7 @@ function hashPayload(rawBody) {
   return crypto.createHash("sha256").update(String(rawBody || "")).digest("hex");
 }
 
-/** Marca pedido como pago e libera no Mikrotik correto (multi-roteador) */
+/** Marca pedido como pago e aciona o Relay para liberar o acesso. */
 async function markPaidAndRelease(orderCode, ctx = {}) {
   let pedido = await prisma.pedido.findFirst({
     where: { code: orderCode },
@@ -179,29 +180,16 @@ async function markPaidAndRelease(orderCode, ctx = {}) {
     logger.info({ orderCode }, "[WEBHOOK] Pedido já estava em PAID");
   }
 
-  let { ip, deviceMac } = pedido;
-  if (!ip || !deviceMac) {
-    logger.warn(
-      { orderCode, hasIp: Boolean(ip), hasMac: Boolean(deviceMac) },
-      "[WEBHOOK] Pedido sem IP/MAC completos; seguindo assim mesmo"
-    );
-  }
-
-  if (!ip && !deviceMac) {
-    logger.error({ orderCode }, "[WEBHOOK] Sem IP e MAC para liberar acesso");
-    return;
-  }
-
   const lookupDeviceId = pedido.deviceId;
   const lookupMikId = pedido.device?.mikId || pedido.deviceIdentifier;
   logger.info(
     { orderCode, lookupDeviceId, lookupMikId },
-    "[WEBHOOK] Buscando roteador para liberação"
+    "[WEBHOOK] Buscando dispositivo para liberação via Relay"
   );
 
-  let routerInfo;
+  let deviceRecord;
   try {
-    routerInfo = await requireDeviceRouter({
+    deviceRecord = await findDeviceRecord({
       deviceId: lookupDeviceId,
       mikId: lookupMikId,
     });
@@ -213,44 +201,58 @@ async function markPaidAndRelease(orderCode, ctx = {}) {
         deviceId: pedido.deviceId,
         deviceIdentifier: pedido.deviceIdentifier,
       },
-      "[WEBHOOK] Dispositivo não encontrado ou sem credenciais"
+      "[WEBHOOK] Dispositivo não encontrado para liberação"
     );
-    return;
+    throw err;
   }
 
-  if (!routerInfo || !routerInfo.router || !routerInfo.router.host) {
-    logger.error({ orderCode }, "[WEBHOOK] Router inválido ou sem host");
-    return;
+  if (!deviceRecord?.mikId) {
+    logger.error({ orderCode, deviceId: pedido.deviceId }, "[WEBHOOK] Dispositivo sem mikId para liberação");
+    throw new Error("device_missing_mik_id");
   }
 
-  try {
-    // Record a release request for the Relay to act upon. The Relay will be
-    // responsible for executing the Mikrotik commands, retries, validations
-    // and creating/updating sessions.
-    try {
-      const mikrotikId = routerInfo.router?.host || routerInfo.router?.id || null;
-      await auditLog({
-        requestId: ctx.hookId || ctx.basics?.chargeId || ctx.basics?.orderCode || null,
-        event: 'WEBHOOK_RELEASE_REQUESTED',
-        entityId: pedido.id,
-        ip: ctx.clientIp || null,
-        result: 'PENDING',
-        metadata: {
-          orderCode: pedido.code,
-          pedidoId: pedido.id,
-          ip: ip || null,
-          mac: deviceMac || null,
-          router: mikrotikId,
-          note: 'Requested by payment webhook',
-        },
-      });
-    } catch (e) {
-      logger.error({ orderCode, error: e?.message || e }, "[WEBHOOK] Falha ao registrar pedido de liberação");
+  const tokenAtivo = await obterTokenAtivoPorPedido(pedido.id).catch(() => null);
+  if (!tokenAtivo?.token) {
+    logger.error({ orderCode, pedidoId: pedido.id }, "[WEBHOOK] Token ativo ausente para liberação");
+    throw new Error("missing_active_device_token");
+  }
+
+  const relayResp = await callRelay(
+    "/relay/authorize-by-pedido",
+    {
+      pedidoId: pedido.id,
+      mikId: deviceRecord.mikId,
+      deviceToken: tokenAtivo.token,
+    },
+    {
+      retries: 1,
+      timeoutMs: 8000,
+      requestId: ctx.hookId || ctx.basics?.chargeId || ctx.basics?.orderCode || pedido.id,
     }
-  } catch (e) {
-    logger.error({ orderCode, error: e?.message || e }, "[WEBHOOK] Erro ao processar liberação");
-    throw e;
+  );
+
+  if (!relayResp?.ok) {
+    logger.error(
+      {
+        orderCode,
+        pedidoId: pedido.id,
+        mikId: deviceRecord.mikId,
+        status: relayResp?.status || 0,
+        error: relayResp?.error || relayResp?.text || null,
+      },
+      "[WEBHOOK] callRelay authorize-by-pedido failed"
+    );
+    throw new Error(relayResp?.error || `relay_authorize_failed_${relayResp?.status || 0}`);
   }
+
+  logger.info(
+    {
+      orderCode,
+      pedidoId: pedido.id,
+      mikId: deviceRecord.mikId,
+    },
+    "[WEBHOOK] Relay authorization dispatched"
+  );
 }
 
 export async function POST(req) {
@@ -478,35 +480,6 @@ export async function POST(req) {
             { chargeId: basics.chargeId },
             "[WEBHOOK] Sem orderCode para criar Charge"
           );
-        }
-      }
-
-      if (mappedPedido === "PAID" && basics.method === "PIX" && basics.orderCode) {
-        try {
-          const pedidoParaLiberar = await prisma.pedido.findFirst({
-            where: { code: basics.orderCode },
-            select: { ip: true },
-          });
-
-          const ipCliente = String(pedidoParaLiberar?.ip || '').trim();
-          if (ipCliente) {
-            await liberarCliente(ipCliente);
-            logger.info(
-              { orderCode: basics.orderCode, ip: ipCliente },
-              "[WEBHOOK] Cliente liberado automaticamente via PIX"
-            );
-          } else {
-            logger.warn(
-              { orderCode: basics.orderCode },
-              "[WEBHOOK] Pedido sem IP para liberação automática"
-            );
-          }
-        } catch (autoReleaseErr) {
-          logger.error(
-            { orderCode: basics.orderCode, error: autoReleaseErr?.message || autoReleaseErr },
-            "[WEBHOOK] Falha ao liberar cliente automático"
-          );
-          throw autoReleaseErr;
         }
       }
 
