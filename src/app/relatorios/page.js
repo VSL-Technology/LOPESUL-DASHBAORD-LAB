@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import EChart from "@/components/EChart";
+import { Card } from "@/components/ui/Card";
+import { MetricCard } from "@/components/ui/MetricCard";
 
 
 
@@ -165,51 +167,31 @@ export default function RelatoriosPage() {
       {/* KPIs com cores suaves */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {/* Vendas (total) — amarelo */}
-        <div className="
-          rounded-xl p-4 shadow border
-          bg-yellow-50 border-yellow-200 text-yellow-900
-          dark:bg-yellow-500/10 dark:border-yellow-700 dark:text-yellow-200
-        ">
-          <div className="text-sm opacity-90">Vendas (total)</div>
-          <div className="mt-1 text-2xl font-bold">{fmtBRL(resumo.totalVendas ?? 0)}</div>
-          <div className="text-xs opacity-80">{resumo.qtdVendas ?? 0} operações</div>
-        </div>
+        <MetricCard
+          label="Vendas (total)"
+          value={fmtBRL(resumo.totalVendas ?? 0)}
+          sub={`${resumo.qtdVendas ?? 0} operações`}
+          variant="warning"
+        />
 
-        {/* Pagamentos confirmados — verde */}
-        <div className="
-          rounded-xl p-4 shadow border
-          bg-green-50 border-green-200 text-green-900
-          dark:bg-green-500/10 dark:border-green-700 dark:text-green-200
-        ">
-          <div className="text-sm opacity-90">Pagamentos confirmados</div>
-          <div className="mt-1 text-2xl font-bold">{fmtBRL(resumo.receita ?? 0)}</div>
-          <div className="text-xs opacity-80">
-            {resumo.pagamentos?.pagos ?? 0} pagos • {resumo.pagamentos?.pendentes ?? 0} pend. • {resumo.pagamentos?.expirados ?? 0} exp.
-          </div>
-        </div>
+        <MetricCard
+          label="Pagamentos confirmados"
+          value={fmtBRL(resumo.receita ?? 0)}
+          sub={`${resumo.pagamentos?.pagos ?? 0} pagos • ${resumo.pagamentos?.pendentes ?? 0} pend. • ${resumo.pagamentos?.expirados ?? 0} exp.`}
+          variant="success"
+        />
 
-        {/* Operação — azul */}
-        <div className="
-          rounded-xl p-4 shadow border
-          bg-blue-50 border-blue-200 text-blue-900
-          dark:bg-blue-500/10 dark:border-blue-700 dark:text-blue-200
-        ">
-          <div className="text-sm opacity-90">Operação</div>
-          <div className="mt-1 text-2xl font-bold">
-            {data?.inventario?.frotas ?? 0} frotas / {data?.inventario?.dispositivos ?? 0} disp.
-          </div>
-          <div className="text-xs opacity-80">
-            {data?.operacao?.operadores ?? 0} oper. • {data?.operacao?.sessoesAtivas ?? 0} sessões ativas
-          </div>
-        </div>
+        <MetricCard
+          label="Operação"
+          value={`${data?.inventario?.frotas ?? 0} frotas / ${data?.inventario?.dispositivos ?? 0} disp.`}
+          sub={`${data?.operacao?.operadores ?? 0} oper. • ${data?.operacao?.sessoesAtivas ?? 0} sessões ativas`}
+          variant="info"
+        />
       </div>
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
-          <div className="mb-2 text-sm font-medium text-gray-900 dark:text-white">
-            Vendas por dia
-          </div>
+        <Card className="shadow dark:bg-[#111827]" title="Vendas por dia">
           <div className="min-h-[200px] h-[260px] sm:h-[320px]">
             {loading ? (
               <div className="h-full animate-pulse rounded-lg bg-gray-200/50 dark:bg-white/5" />
@@ -217,12 +199,9 @@ export default function RelatoriosPage() {
               <EChart option={vendasOption} height="100%" />
             )}
           </div>
-        </div>
+        </Card>
 
-        <div className="rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
-          <div className="mb-2 text-sm font-medium text-gray-900 dark:text-white">
-            Pagamentos confirmados por dia
-          </div>
+        <Card className="shadow dark:bg-[#111827]" title="Pagamentos confirmados por dia">
           <div className="min-h-[200px] h-[260px] sm:h-[320px]">
             {loading ? (
               <div className="h-full animate-pulse rounded-lg bg-gray-200/50 dark:bg-white/5" />
@@ -234,12 +213,9 @@ export default function RelatoriosPage() {
               <EChart option={pagosOption} height="100%" />
             )}
           </div>
-        </div>
+        </Card>
 
-        <div className="lg:col-span-2 rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
-          <div className="mb-2 text-sm font-medium text-gray-900 dark:text-white">
-            Faturamento por Frota
-          </div>
+        <Card className="shadow dark:bg-[#111827] lg:col-span-2" title="Faturamento por Frota">
           <div className="min-h-[200px] h-[280px] sm:h-[380px]">
             {loading ? (
               <div className="h-full animate-pulse rounded-lg bg-gray-200/50 dark:bg-white/5" />
@@ -247,7 +223,7 @@ export default function RelatoriosPage() {
               <EChart option={barrasOption} height="100%" />
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

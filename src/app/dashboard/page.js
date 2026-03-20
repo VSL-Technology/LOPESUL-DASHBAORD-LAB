@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import { Card } from "@/components/ui/Card";
+import { MetricCard } from "@/components/ui/MetricCard";
 
 const DASH_REFRESH_MS = 30_000;
 const STATUS_REFRESH_MS = 15_000;
@@ -14,11 +16,11 @@ const fmtBRL = (value) =>
 
 function kpiCards(summary) {
   return [
-    { label: "Receita Hoje", value: fmtBRL(summary.receitaHoje) },
-    { label: "Receita 30 Dias", value: fmtBRL(summary.receita30Dias) },
-    { label: "Total de Vendas", value: summary.totalVendas },
-    { label: "Sessões Ativas", value: summary.sessoesAtivas },
-    { label: "Operadores Ativos", value: summary.operadoresAtivos },
+    { label: "Receita Hoje", value: fmtBRL(summary.receitaHoje), variant: "info" },
+    { label: "Receita 30 Dias", value: fmtBRL(summary.receita30Dias), variant: "default" },
+    { label: "Total de Vendas", value: summary.totalVendas, variant: "success" },
+    { label: "Sessões Ativas", value: summary.sessoesAtivas, variant: "default" },
+    { label: "Operadores Ativos", value: summary.operadoresAtivos, variant: "warning" },
   ];
 }
 
@@ -205,27 +207,22 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
             {kpiCards(summary).map((item) => (
-              <div
+              <MetricCard
                 key={item.label}
-                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800"
-              >
-                <p className="text-sm text-gray-500 dark:text-gray-400">{item.label}</p>
-                <p className="mt-3 text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                  {loading ? "..." : item.value}
-                </p>
-              </div>
+                label={item.label}
+                value={loading ? "..." : item.value}
+                variant={item.variant}
+              />
             ))}
           </div>
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.5fr_1fr]">
-            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <Card
+              className="shadow-sm"
+              title="Status Geral"
+              subtitle="Indicadores executivos da conectividade central."
+            >
               <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Status Geral</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Indicadores executivos da conectividade central.
-                  </p>
-                </div>
                 <div className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-100">
                   Atualização automática
                 </div>
@@ -270,12 +267,13 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
-            </section>
+            </Card>
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Resumo de Vendas</h2>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Distribuição operacional dos pagamentos.</p>
-
+            <Card
+              className="shadow-sm"
+              title="Resumo de Vendas"
+              subtitle="Distribuição operacional dos pagamentos."
+            >
               <div className="mt-6 space-y-4">
                 {paymentBars.map((item) => (
                   <div key={item.label} className="space-y-2">
@@ -297,7 +295,7 @@ export default function DashboardPage() {
                 </p>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Base de 30 dias, sem detalhamento de sessões.</p>
               </div>
-            </section>
+            </Card>
           </div>
         </div>
       </div>

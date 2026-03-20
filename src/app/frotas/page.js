@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import { Card } from "@/components/ui/Card";
+import { MetricCard } from "@/components/ui/MetricCard";
 
 function formatBRL(value) {
   return Number(value ?? 0).toLocaleString("pt-BR", {
@@ -100,17 +102,16 @@ export default function FrotasPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[
-              { label: "Receita Total", value: formatBRL(summary.receita) },
-              { label: "Sessões Ativas", value: summary.sessoes },
-              { label: "Mikrotiks Online", value: summary.online },
+              { label: "Receita Total", value: formatBRL(summary.receita), variant: "info" },
+              { label: "Sessões Ativas", value: summary.sessoes, variant: "default" },
+              { label: "Mikrotiks Online", value: summary.online, variant: "success" },
             ].map((item) => (
-              <div
+              <MetricCard
                 key={item.label}
-                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800"
-              >
-                <p className="text-sm text-gray-500 dark:text-gray-400">{item.label}</p>
-                <p className="mt-3 text-3xl font-semibold text-gray-900 dark:text-white">{loading ? "..." : item.value}</p>
-              </div>
+                label={item.label}
+                value={loading ? "..." : item.value}
+                variant={item.variant}
+              />
             ))}
           </div>
 
@@ -121,9 +122,9 @@ export default function FrotasPage() {
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {rows.map((frota) => (
-                <article
+                <Card
                   key={frota.id}
-                  className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                  className="shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -161,7 +162,7 @@ export default function FrotasPage() {
                     <p>{frota.mikrotikIdentity || "Sem identidade de roteador"}</p>
                     <p>{frota.mikrotikHost || "Sem host de Mikrotik"}</p>
                   </div>
-                </article>
+                </Card>
               ))}
             </div>
           )}
