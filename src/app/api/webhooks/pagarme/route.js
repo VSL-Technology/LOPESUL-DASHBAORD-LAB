@@ -17,11 +17,23 @@ import { getOrCreateRequestId } from '@/lib/security/requestId';
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Map de status (order/charge -> nosso enum) */
-function mapStatus({ type, orderStatus, chargeStatus }) {
+/** Map de status (order/charge -> nossos enums Prisma) */
+function mapStatus({ type, orderStatus, chargeStatus, target = "pedido" }) {
   const t = String(type || "").toLowerCase();
   const o = String(orderStatus || "").toLowerCase();
   const c = String(chargeStatus || "").toLowerCase();
+
+  if (target === "charge") {
+    if (t.includes("paid") || o === "paid" || c === "paid" || c === "succeeded")
+      return "PAID";
+    if (t.includes("canceled") || o === "canceled" || c === "canceled")
+      return "CANCELED";
+    if (t.includes("failed") || o === "failed" || c === "failed")
+      return "FAILED";
+    if (o === "expired" || c === "expired") return "CANCELED";
+    if (c === "authorized") return "AUTHORIZED";
+    return "CREATED";
+  }
 
   if (t.includes("paid") || o === "paid" || c === "paid" || c === "succeeded")
     return "PAID";
@@ -30,8 +42,7 @@ function mapStatus({ type, orderStatus, chargeStatus }) {
   if (t.includes("failed") || o === "failed" || c === "failed")
     return "FAILED";
   if (o === "expired" || c === "expired") return "EXPIRED";
-  if (c === "authorized") return "AUTHORIZED";
-  // pending/processing/created
+  if (c === "authorized") return "PAID";
   return "PENDING";
 }
 
@@ -360,10 +371,17 @@ export async function POST(req) {
         // degrade gracefully
       }
 
-      const mapped = mapStatus({
+      const mappedPedido = mapStatus({
         type: basics.type,
         orderStatus: basics.orderStatus,
         chargeStatus: basics.chargeStatus,
+        target: "pedido",
+      });
+      const mappedCharge = mapStatus({
+        type: basics.type,
+        orderStatus: basics.orderStatus,
+        chargeStatus: basics.chargeStatus,
+        target: "charge",
       });
 
       try {
@@ -378,7 +396,7 @@ export async function POST(req) {
         logger.error({ hookId, eventId, error: logErr?.message || logErr }, "[WEBHOOK] Erro ao salvar log");
       }
 
-      if (basics.orderCode && mapped) {
+      if (basics.orderCode && mappedPedido) {
         let pedidoExistente = await prisma.pedido.findFirst({
           where: { code: basics.orderCode },
         });
@@ -395,18 +413,18 @@ export async function POST(req) {
         }
 
         if (pedidoExistente) {
-          if (shouldUpdateStatus(pedidoExistente.status, mapped)) {
+          if (shouldUpdateStatus(pedidoExistente.status, mappedPedido)) {
             await prisma.pedido.update({
               where: { id: pedidoExistente.id },
-              data: { status: mapped },
+              data: { status: mappedPedido },
             });
             logger.info(
-              { orderCode: basics.orderCode, status: mapped },
+              { orderCode: basics.orderCode, status: mappedPedido },
               "[WEBHOOK] Pedido atualizado"
             );
           } else {
             logger.info(
-              { orderCode: basics.orderCode, current: pedidoExistente.status, incoming: mapped },
+              { orderCode: basics.orderCode, current: pedidoExistente.status, incoming: mappedPedido },
               "[WEBHOOK] Transição de status ignorada"
             );
           }
@@ -415,14 +433,14 @@ export async function POST(req) {
         }
       }
 
-      if (basics.chargeId && mapped) {
+      if (basics.chargeId && mappedCharge) {
         const existingCharge = await prisma.charge.findFirst({
           where: { providerId: basics.chargeId },
           select: { id: true },
         });
 
         const common = {
-          status: mapped,
+          status: mappedCharge,
           method: basics.method === "PIX" ? "PIX" : basics.method || "CARD",
           qrCode: basics.qrText ?? undefined,
           qrCodeUrl: basics.qrUrl ?? undefined,
@@ -463,7 +481,7 @@ export async function POST(req) {
         }
       }
 
-      if (mapped === "PAID" && basics.method === "PIX" && basics.orderCode) {
+      if (mappedPedido === "PAID" && basics.method === "PIX" && basics.orderCode) {
         try {
           const pedidoParaLiberar = await prisma.pedido.findFirst({
             where: { code: basics.orderCode },
@@ -491,7 +509,7 @@ export async function POST(req) {
         }
       }
 
-      if (mapped === "PAID" && basics.orderCode) {
+      if (mappedPedido === "PAID" && basics.orderCode) {
         try {
           await markPaidAndRelease(basics.orderCode, { hookId, basics, clientIp });
           logger.info({ orderCode: basics.orderCode }, "[WEBHOOK] Liberação concluída");
