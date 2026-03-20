@@ -167,12 +167,12 @@ export default function Sidebar({
           ))}
         </nav>
 
-        <div className="border-t border-white/10 p-2">
-          <div className="space-y-2">
+        <div className="border-t border-white/10 p-3">
+          <div className="flex gap-2 rounded-xl bg-white/5 p-1">
             <button
               type="button"
               onClick={toggleTema}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
               aria-label="Alternar tema"
               title={`Alternar tema (${tema})`}
             >
@@ -183,7 +183,7 @@ export default function Sidebar({
                   collapsibleLabelClasses
                 )}
               >
-                Alternar tema
+                Tema
               </span>
             </button>
 
@@ -193,7 +193,7 @@ export default function Sidebar({
                 onClose();
                 logout?.();
               }}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
               aria-label="Sair"
               title="Sair"
             >
