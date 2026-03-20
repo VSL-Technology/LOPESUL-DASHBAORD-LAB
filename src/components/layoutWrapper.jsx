@@ -29,7 +29,7 @@ export default function LayoutWrapper({ children }) {
       {/* Topbar (aparece só no mobile) */}
       <header
         className="
-          lg:hidden sticky top-0 z-40
+          md:hidden sticky top-0 z-40
           bg-[#1a2233]/80 backdrop-blur
           border-b border-white/10
           px-3 py-3 flex items-center gap-3 text-slate-100
@@ -50,7 +50,7 @@ export default function LayoutWrapper({ children }) {
           - no desktop reservamos 256px pro sidebar com lg:pl-64
           - no mobile ocupa 100% (drawer sobrepõe quando aberto)
       */}
-      <main className="lg:pl-64">
+      <main className="md:pl-16 lg:pl-64">
         <div className="p-4 lg:p-8">
           {/* Protege contra estouro horizontal em tabelas/grids */}
           <div className="overflow-x-auto">{children}</div>

@@ -58,7 +58,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
       {/* Overlay (mobile) */}
       <div
         onClick={onClose}
-        className={`fixed inset-0 z-40 bg-black/40 lg:hidden transition-opacity ${
+        className={`fixed inset-0 z-40 bg-black/40 md:hidden transition-opacity ${
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         aria-hidden={!open}
@@ -71,7 +71,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
           transition-transform duration-300 will-change-transform
           w-16 lg:w-64
           ${open ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0
+          md:translate-x-0
         `}
         style={{
           background: `linear-gradient(180deg, ${COLORS.sidebar} 0%, ${COLORS.sidebar2} 100%)`,
@@ -86,7 +86,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
       >
         {/* Cabeçalho (mobile) */}
         <div
-          className="lg:hidden flex items-center justify-between px-3 h-14 border-b"
+          className="md:hidden flex items-center justify-between px-3 h-14 border-b"
           style={{ borderColor: COLORS.divider }}
         >
           <span className="font-semibold">Menu</span>
