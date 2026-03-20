@@ -32,12 +32,12 @@ function diffMin(a, b) {
 
 function statusBadge(status) {
   if (status === "online") {
-    return "border border-blue-500/30 bg-blue-500/10 text-blue-100";
+    return "border border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100";
   }
   if (status === "offline") {
-    return "border border-slate-700 bg-slate-900 text-slate-200";
+    return "border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-slate-200";
   }
-  return "border border-slate-700 bg-slate-950/60 text-slate-300";
+  return "border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-950/60 text-gray-600 dark:text-slate-300";
 }
 
 export default function AcessosPage() {
@@ -186,16 +186,16 @@ export default function AcessosPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen rounded-3xl bg-[#0f172a] text-[#e2e8f0]">
+      <div className="min-h-screen rounded-3xl bg-white text-gray-900 dark:bg-[#0f172a] dark:text-[#e2e8f0]">
         <div className="space-y-6 p-6 md:p-8">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-3xl font-semibold">Acessos</h1>
-              <p className="text-sm text-[#94a3b8]">
+              <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">Acessos</h1>
+              <p className="text-sm text-gray-500 dark:text-[#94a3b8]">
                 Central operacional em tempo real para monitorar e encerrar sessões.
               </p>
             </div>
-            <div className="text-sm text-[#94a3b8]">
+            <div className="text-sm text-gray-500 dark:text-[#94a3b8]">
               {lastUpdated ? `Atualizado às ${lastUpdated.toLocaleTimeString("pt-BR")}` : "Aguardando atualização"}
             </div>
           </div>
@@ -208,15 +208,15 @@ export default function AcessosPage() {
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-2xl border border-slate-800 bg-[#1e293b] p-5 shadow-[0_10px_30px_rgba(15,23,42,0.35)]"
+                className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1e293b] p-5 shadow-sm dark:shadow-[0_10px_30px_rgba(15,23,42,0.35)]"
               >
-                <p className="text-sm text-[#94a3b8]">{item.label}</p>
-                <p className="mt-3 text-3xl font-semibold">{loading ? "..." : item.value}</p>
+                <p className="text-sm text-gray-500 dark:text-[#94a3b8]">{item.label}</p>
+                <p className="mt-3 text-3xl font-semibold text-gray-900 dark:text-white">{loading ? "..." : item.value}</p>
               </div>
             ))}
           </div>
 
-          <section className="rounded-2xl border border-slate-800 bg-[#1e293b] p-5 shadow-[0_10px_30px_rgba(15,23,42,0.35)]">
+          <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1e293b] p-5 shadow-sm dark:shadow-[0_10px_30px_rgba(15,23,42,0.35)]">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="grid flex-1 gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
                 <input
@@ -224,12 +224,12 @@ export default function AcessosPage() {
                   placeholder="Buscar por nome, IP, MAC ou plano"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-[#e2e8f0] outline-none transition focus:border-blue-500"
+                  className="rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-950 px-4 py-3 text-sm text-gray-900 dark:text-white outline-none transition focus:border-blue-500"
                 />
                 <select
                   value={range}
                   onChange={(event) => setRange(event.target.value)}
-                  className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-[#e2e8f0] outline-none transition focus:border-blue-500"
+                  className="rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-950 px-4 py-3 text-sm text-gray-900 dark:text-white outline-none transition focus:border-blue-500"
                 >
                   <option value="24h">Últimas 24h</option>
                   <option value="hoje">Hoje</option>
@@ -238,7 +238,7 @@ export default function AcessosPage() {
                 </select>
               </div>
 
-              <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-[#94a3b8]">
+              <label className="flex items-center gap-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-950 px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                 <input
                   type="checkbox"
                   checked={autoRefresh}
@@ -250,10 +250,10 @@ export default function AcessosPage() {
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-2xl border border-slate-800 bg-[#1e293b] shadow-[0_10px_30px_rgba(15,23,42,0.35)]">
+          <section className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1e293b] shadow-sm dark:shadow-[0_10px_30px_rgba(15,23,42,0.35)]">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-wide text-[#94a3b8]">
+                <thead className="bg-gray-50 dark:bg-slate-950/70 text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   <tr>
                     <th className="px-4 py-4 font-medium">Cliente</th>
                     <th className="px-4 py-4 font-medium">IP</th>
@@ -267,24 +267,24 @@ export default function AcessosPage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-[#94a3b8]">
+                      <td colSpan={7} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
                         Carregando sessões...
                       </td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-[#94a3b8]">
+                      <td colSpan={7} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
                         Nenhuma sessão encontrada para o período selecionado.
                       </td>
                     </tr>
                   ) : (
                     filtered.map((item) => (
                       <tr key={item.id} className="border-t border-slate-800/80">
-                        <td className="px-4 py-4 text-[#e2e8f0]">{item.nome}</td>
-                        <td className="px-4 py-4 text-[#cbd5e1]">{item.ip}</td>
-                        <td className="px-4 py-4 text-[#cbd5e1]">{item.mac}</td>
-                        <td className="px-4 py-4 text-[#cbd5e1]">{item.plano}</td>
-                        <td className="px-4 py-4 text-[#cbd5e1]">{item.tempo}</td>
+                        <td className="px-4 py-4 text-gray-900 dark:text-white">{item.nome}</td>
+                        <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{item.ip}</td>
+                        <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{item.mac}</td>
+                        <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{item.plano}</td>
+                        <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{item.tempo}</td>
                         <td className="px-4 py-4">
                           <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${statusBadge(item.status)}`}>
                             {item.statusLabel}
@@ -294,7 +294,7 @@ export default function AcessosPage() {
                           <button
                             type="button"
                             onClick={() => encerrar(item.id)}
-                            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-[#e2e8f0] transition hover:border-blue-500 hover:text-blue-100"
+                            className="rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-950 px-3 py-2 text-xs font-medium text-gray-700 dark:text-white transition hover:border-blue-500 hover:text-blue-700 dark:hover:text-blue-100"
                           >
                             Derrubar sessão
                           </button>
