@@ -137,21 +137,21 @@ export default function TrialsPage() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
+      <div className="mb-6 grid grid-cols-3 gap-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-[#232e47]">
-          <p className="text-sm text-slate-500 dark:text-slate-300">Trials ativos</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{stats.ativos}</p>
+          <p className="min-w-0 text-xs text-slate-500 dark:text-slate-300 sm:text-sm">Trials ativos</p>
+          <p className="mt-2 min-w-0 text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">{stats.ativos}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-[#232e47]">
-          <p className="text-sm text-slate-500 dark:text-slate-300">Total monitorado</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{stats.total}</p>
+          <p className="min-w-0 text-xs text-slate-500 dark:text-slate-300 sm:text-sm">Total monitorado</p>
+          <p className="mt-2 min-w-0 text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">{stats.total}</p>
         </div>
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10">
-          <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-100">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-amber-700 dark:text-amber-100 sm:text-sm">
             <AlertTriangle size={16} />
             Expirando em até 5 min
           </div>
-          <p className="mt-2 text-3xl font-bold text-amber-800 dark:text-amber-100">{stats.expiringSoon}</p>
+          <p className="mt-2 min-w-0 text-2xl font-bold text-amber-800 dark:text-amber-100 sm:text-3xl">{stats.expiringSoon}</p>
         </div>
       </div>
 

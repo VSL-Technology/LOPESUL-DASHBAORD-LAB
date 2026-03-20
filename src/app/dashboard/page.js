@@ -203,7 +203,7 @@ export default function DashboardPage() {
             </div>
           ) : null}
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
             {kpiCards(summary).map((item) => (
               <div
                 key={item.label}
@@ -217,7 +217,7 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.5fr_1fr]">
             <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
               <div className="flex items-center justify-between">
                 <div>
@@ -231,7 +231,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
                 {[
                   {
                     title: "Mikrotik",
@@ -246,7 +246,7 @@ export default function DashboardPage() {
                 ].map(({ title, item, fallback }) => (
                   <div
                     key={title}
-                    className={`rounded-2xl border p-5 ${statusTone(item.online, item.messageCode)}`}
+                    className={`min-w-0 rounded-2xl border p-5 ${statusTone(item.online, item.messageCode)}`}
                   >
                     <div className="flex items-start justify-between">
                       <div>

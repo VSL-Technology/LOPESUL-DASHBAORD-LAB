@@ -200,7 +200,7 @@ export default function AcessosPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
             {[
               { label: "Sessões", value: summary.total },
               { label: "Online", value: summary.online },
@@ -250,8 +250,59 @@ export default function AcessosPage() {
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-2xl border border-slate-800 bg-[#1e293b] shadow-[0_10px_30px_rgba(15,23,42,0.35)]">
-            <div className="overflow-x-auto">
+          <section className="space-y-4">
+            <div className="space-y-3 md:hidden">
+              {loading ? (
+                <div className="rounded-2xl border border-slate-800 bg-[#1e293b] px-4 py-8 text-center text-[#94a3b8] shadow-[0_10px_30px_rgba(15,23,42,0.35)]">
+                  Carregando sessões...
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="rounded-2xl border border-slate-800 bg-[#1e293b] px-4 py-8 text-center text-[#94a3b8] shadow-[0_10px_30px_rgba(15,23,42,0.35)]">
+                  Nenhuma sessão encontrada para o período selecionado.
+                </div>
+              ) : (
+                filtered.map((item) => (
+                  <article
+                    key={item.id}
+                    className="rounded-2xl border border-slate-800 bg-[#1e293b] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.35)]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#e2e8f0]">{item.nome}</p>
+                        <p className="mt-1 text-xs text-[#94a3b8]">{item.plano}</p>
+                      </div>
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${statusBadge(item.status)}`}>
+                        {item.statusLabel}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-[#cbd5e1]">
+                      <div>
+                        <p className="text-xs text-[#94a3b8]">IP</p>
+                        <p>{item.ip}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#94a3b8]">MAC</p>
+                        <p className="break-all">{item.mac}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#94a3b8]">Tempo conectado</p>
+                        <p>{item.tempo}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => encerrar(item.id)}
+                      className="mt-4 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-[#e2e8f0] transition hover:border-blue-500 hover:text-blue-100"
+                    >
+                      Derrubar sessão
+                    </button>
+                  </article>
+                ))
+              )}
+            </div>
+
+            <div className="hidden overflow-hidden rounded-2xl border border-slate-800 bg-[#1e293b] shadow-[0_10px_30px_rgba(15,23,42,0.35)] md:block">
+              <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-wide text-[#94a3b8]">
                   <tr>
@@ -304,6 +355,7 @@ export default function AcessosPage() {
                   )}
                 </tbody>
               </table>
+            </div>
             </div>
           </section>
         </div>

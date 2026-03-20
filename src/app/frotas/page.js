@@ -98,7 +98,7 @@ export default function FrotasPage() {
             <div className="text-sm text-gray-500 dark:text-gray-400">{rows.length} ônibus monitorados</div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[
               { label: "Receita Total", value: formatBRL(summary.receita) },
               { label: "Sessões Ativas", value: summary.sessoes },
@@ -119,7 +119,7 @@ export default function FrotasPage() {
               Carregando frotas...
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {rows.map((frota) => (
                 <article
                   key={frota.id}

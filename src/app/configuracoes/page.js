@@ -126,7 +126,8 @@ export default function ConfiguracoesPage() {
         </p>
       </div>
 
-      <div className="space-y-8 max-w-4xl">
+      <div className="space-y-8">
+        <div className="max-w-2xl space-y-8">
         <section className="rounded-2xl border border-slate-700/20 bg-white dark:bg-[#232e47] p-6 shadow">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             Sessão do Dashboard
@@ -221,8 +222,9 @@ export default function ConfiguracoesPage() {
             </label>
           </div>
         </section>
+        </div>
 
-        <section className="rounded-2xl border border-slate-700/20 bg-white dark:bg-[#232e47] p-6 shadow">
+        <section className="max-w-4xl rounded-2xl border border-slate-700/20 bg-white p-6 shadow dark:bg-[#232e47]">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">

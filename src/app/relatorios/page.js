@@ -133,7 +133,7 @@ export default function RelatoriosPage() {
 
   return (
     <div className="p-6 md:p-8 bg-transparent min-h-screen transition-colors">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
             Relatórios e Análises
@@ -143,7 +143,7 @@ export default function RelatoriosPage() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <select
             value={range}
             onChange={(e) => setRange(e.target.value)}
@@ -163,7 +163,7 @@ export default function RelatoriosPage() {
       </div>
 
       {/* KPIs com cores suaves */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {/* Vendas (total) — amarelo */}
         <div className="
           rounded-xl p-4 shadow border
@@ -205,26 +205,48 @@ export default function RelatoriosPage() {
       </div>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
           <div className="mb-2 text-sm font-medium text-gray-900 dark:text-white">
             Vendas por dia
           </div>
-          {loading ? <div className="h-[320px] animate-pulse bg-gray-200/50 dark:bg-white/5 rounded-lg" /> : <EChart option={vendasOption} height={320} />}
+          <div className="min-h-[200px] h-[260px] sm:h-[320px]">
+            {loading ? (
+              <div className="h-full animate-pulse rounded-lg bg-gray-200/50 dark:bg-white/5" />
+            ) : (
+              <EChart option={vendasOption} height="100%" />
+            )}
+          </div>
         </div>
 
         <div className="rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
           <div className="mb-2 text-sm font-medium text-gray-900 dark:text-white">
             Pagamentos confirmados por dia
           </div>
-          {loading ? <div className="h-[320px] animate-pulse bg-gray-200/50 dark:bg-white/5 rounded-lg" /> : <EChart option={pagosOption} height={320} />}
+          <div className="min-h-[200px] h-[260px] sm:h-[320px]">
+            {loading ? (
+              <div className="h-full animate-pulse rounded-lg bg-gray-200/50 dark:bg-white/5" />
+            ) : pagosPorDia.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-gray-400">
+                Nenhum dado no período
+              </div>
+            ) : (
+              <EChart option={pagosOption} height="100%" />
+            )}
+          </div>
         </div>
 
         <div className="lg:col-span-2 rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
           <div className="mb-2 text-sm font-medium text-gray-900 dark:text-white">
             Faturamento por Frota
           </div>
-          {loading ? <div className="h-[380px] animate-pulse bg-gray-200/50 dark:bg-white/5 rounded-lg" /> : <EChart option={barrasOption} height={380} />}
+          <div className="min-h-[200px] h-[280px] sm:h-[380px]">
+            {loading ? (
+              <div className="h-full animate-pulse rounded-lg bg-gray-200/50 dark:bg-white/5" />
+            ) : (
+              <EChart option={barrasOption} height="100%" />
+            )}
+          </div>
         </div>
       </div>
     </div>
