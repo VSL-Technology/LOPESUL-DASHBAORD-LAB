@@ -99,7 +99,7 @@ export default function TrialsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="p-6 md:p-8 min-h-screen bg-[#F0F6FA] dark:bg-[#1a2233] flex items-center justify-center text-slate-500">
+      <div className="p-6 md:p-8 flex items-center justify-center text-slate-500">
         Carregando clientes em trial...
       </div>
     );
@@ -107,14 +107,14 @@ export default function TrialsPage() {
 
   if (!isMaster) {
     return (
-      <div className="p-6 md:p-8 min-h-screen bg-[#F0F6FA] dark:bg-[#1a2233] flex items-center justify-center">
+      <div className="p-6 md:p-8 flex items-center justify-center">
         <AccessDeniedNotice message="Somente operadores Master podem inspecionar e encerrar sessões de trial." />
       </div>
     );
   }
 
   return (
-    <div className="p-6 md:p-8 bg-[#F0F6FA] dark:bg-[#1a2233] min-h-screen transition-colors">
+    <div className="p-6 md:p-8 transition-colors">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <p className="text-sm uppercase tracking-wide text-slate-500 dark:text-slate-400">Monitorar trials</p>

@@ -117,7 +117,7 @@ export default function RelatoriosPage() {
   const resumo = data?.resumo ?? { totalVendas: 0, receita: 0, mediaTempoAcesso: "0 min", pagamentos: { pagos: 0, pendentes: 0, expirados: 0 } };
 
   return (
-    <div className="p-6 md:p-8 bg-transparent min-h-screen transition-colors">
+    <div className="p-6 md:p-8 transition-colors">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">

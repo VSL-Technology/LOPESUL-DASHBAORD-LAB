@@ -86,7 +86,7 @@ export default function FrotasPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen rounded-3xl bg-white text-gray-900 dark:bg-[#0f172a] dark:text-[#e2e8f0]">
+      <div className="text-gray-900 dark:text-[#e2e8f0]">
         <div className="space-y-6 p-6 md:p-8">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>

@@ -111,14 +111,14 @@ export default function ConfiguracoesPage() {
 
   if (!isMaster) {
     return (
-      <div className="p-6 md:p-8 min-h-screen bg-[#F0F6FA] dark:bg-[#1a2233] flex items-center justify-center">
+      <div className="p-6 md:p-8 flex items-center justify-center">
         <AccessDeniedNotice message="Apenas operadores Master conseguem acessar as configurações avançadas." />
       </div>
     );
   }
 
   return (
-    <div className="p-6 md:p-8 bg-[#F0F6FA] dark:bg-[#1a2233] min-h-screen transition-colors">
+    <div className="p-6 md:p-8 transition-colors">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Configurações</h1>
         <p className="text-sm text-gray-600 dark:text-gray-300">

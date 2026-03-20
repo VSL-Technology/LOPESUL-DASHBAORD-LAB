@@ -177,14 +177,14 @@ export default function RoteadoresPage() {
 
   if (!isMaster) {
     return (
-      <div className="p-6 md:p-8 min-h-screen bg-[#F0F6FA] dark:bg-[#1a2233] flex items-center justify-center">
+      <div className="p-6 md:p-8 flex items-center justify-center">
         <AccessDeniedNotice message="Somente operadores Master podem gerenciar roteadores e executar ações críticas." />
       </div>
     );
   }
 
   return (
-    <div className="p-6 md:p-8 bg-[#F0F6FA] dark:bg-[#1a2233] min-h-screen transition-colors">
+    <div className="p-6 md:p-8 transition-colors">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
           Roteadores (Mikrotiks)

@@ -146,7 +146,7 @@ export default function PagamentosPage() {
   }
 
   return (
-    <div className="p-6 md:p-8 bg-[#F0F6FA] dark:bg-[#1a2233] min-h-screen transition-colors">
+    <div className="p-6 md:p-8 transition-colors">
       <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white mb-6">
         Histórico de Pagamentos
       </h1>
