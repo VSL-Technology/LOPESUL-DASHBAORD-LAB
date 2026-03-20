@@ -9,6 +9,17 @@ function statusLabel(s) {
   return String(s).toUpperCase();
 }
 
+function statusBadgeClasses(status) {
+  switch (statusLabel(status)) {
+    case 'ONLINE':
+      return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+    case 'OFFLINE':
+      return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+    default:
+      return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+  }
+}
+
 export default function RoteadoresPage() {
   const { loading: authLoading, isMaster } = useSessionInfo();
   const [roteadores, setRoteadores] = useState([]);
@@ -184,12 +195,12 @@ export default function RoteadoresPage() {
   }
 
   return (
-    <div className="p-6 md:p-8 bg-[#F0F6FA] dark:bg-[#1a2233] min-h-screen transition-colors">
-      <div className="flex items-center justify-between mb-6">
+      <div className="min-h-screen bg-[#F0F6FA] p-6 transition-colors dark:bg-[#1a2233] md:p-8">
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
           Roteadores (Mikrotiks)
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={atualizarStatus}
@@ -200,7 +211,7 @@ export default function RoteadoresPage() {
           </button>
           <a
             href="/roteadores/debug"
-            className="border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg shadow-sm"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
           >
             Debug
           </a>
@@ -208,19 +219,19 @@ export default function RoteadoresPage() {
       </div>
 
       {/* Formulário simples para cadastrar roteador */}
-      <div className="bg-white dark:bg-[#232e47] rounded-xl p-4 shadow mb-6 border border-gray-200 dark:border-gray-700">
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <h2 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
           Novo Roteador
         </h2>
         {erro && (
           <p className="text-sm text-red-500 mb-2">{erro}</p>
         )}
-        <form onSubmit={handleSubmit} className="grid md:grid-cols-3 gap-4 text-sm">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2 lg:grid-cols-3">
           {/* campos do formulário (nome, ip, usuário, senhas, wg...) iguais à versão anterior */}
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-200 mb-1">Nome</label>
             <input
-              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2438] px-2 py-1 text-gray-900 dark:text-white"
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               value={form.nome}
               onChange={(e) => setForm({ ...form, nome: e.target.value })}
               placeholder="Onibus_101"
@@ -230,7 +241,7 @@ export default function RoteadoresPage() {
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-200 mb-1">IP LAN / Tunel</label>
             <input
-              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2438] px-2 py-1 text-gray-900 dark:text-white"
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               value={form.ipLan}
               onChange={(e) => setForm({ ...form, ipLan: e.target.value })}
               placeholder="10.200.200.2"
@@ -240,7 +251,7 @@ export default function RoteadoresPage() {
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-200 mb-1">Usuário API/SSH</label>
             <input
-              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2438] px-2 py-1 text-gray-900 dark:text-white"
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               value={form.usuario}
               onChange={(e) => setForm({ ...form, usuario: e.target.value })}
               placeholder="admin"
@@ -251,7 +262,7 @@ export default function RoteadoresPage() {
             <label className="text-gray-700 dark:text-gray-200 mb-1">Senha</label>
             <input
               type="password"
-              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2438] px-2 py-1 text-gray-900 dark:text-white"
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               value={form.senha}
               onChange={(e) => setForm({ ...form, senha: e.target.value })}
               required
@@ -260,7 +271,7 @@ export default function RoteadoresPage() {
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-200 mb-1">Porta API</label>
             <input
-              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2438] px-2 py-1 text-gray-900 dark:text-white"
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               value={form.portaApi}
               onChange={(e) => setForm({ ...form, portaApi: e.target.value })}
             />
@@ -268,7 +279,7 @@ export default function RoteadoresPage() {
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-200 mb-1">Porta SSH</label>
             <input
-              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2438] px-2 py-1 text-gray-900 dark:text-white"
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               value={form.portaSsh}
               onChange={(e) => setForm({ ...form, portaSsh: e.target.value })}
             />
@@ -276,7 +287,7 @@ export default function RoteadoresPage() {
           <div className="flex flex-col md:col-span-2">
             <label className="text-gray-700 dark:text-gray-200 mb-1">WireGuard Public Key</label>
             <input
-              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2438] px-2 py-1 text-gray-900 dark:text-white"
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               value={form.wgPublicKey}
               onChange={(e) => setForm({ ...form, wgPublicKey: e.target.value })}
               placeholder="chave pública do Mikrotik"
@@ -285,7 +296,7 @@ export default function RoteadoresPage() {
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-200 mb-1">WireGuard IP (/32)</label>
             <input
-              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2438] px-2 py-1 text-gray-900 dark:text-white"
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               value={form.wgIp}
               onChange={(e) => setForm({ ...form, wgIp: e.target.value })}
               placeholder="10.200.200.2/32"
@@ -313,13 +324,13 @@ export default function RoteadoresPage() {
       ) : (roteadores?.length ?? 0) === 0 ? (
         <p className="text-gray-600 dark:text-gray-300">Nenhum roteador cadastrado.</p>
       ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {roteadores.map((r) => {
             const extra = statusExtra[r.id] || {};
             return (
               <div
                 key={r.id}
-                className="bg-white dark:bg-[#232e47] shadow-md rounded-xl p-4 border border-gray-200 dark:border-gray-700 transition-colors"
+                className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800"
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="text-md font-semibold text-gray-800 dark:text-white">
@@ -343,7 +354,10 @@ export default function RoteadoresPage() {
                   <strong>Porta API:</strong> {r.portaApi}
                 </p>
                 <p className="text-gray-700 dark:text-gray-200 text-sm">
-                  <strong>Status Mikrotik:</strong> {statusLabel(r.statusMikrotik)}
+                  <strong>Status Mikrotik:</strong>{' '}
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClasses(r.statusMikrotik)}`}>
+                    {statusLabel(r.statusMikrotik)}
+                  </span>
                 </p>
                 {extra.identity && (
                   <p className="text-gray-600 dark:text-gray-300 text-xs mt-1">

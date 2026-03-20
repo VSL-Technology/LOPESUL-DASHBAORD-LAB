@@ -57,8 +57,6 @@ export default function RelatoriosPage() {
   const isDark = typeof window !== "undefined" && document.documentElement.classList.contains("dark");
   const axisColor = isDark ? "#a3aed0" : "#475569";
   const gridColor = isDark ? "#334155" : "#e5e7eb";
-  const titleColor = isDark ? "#e2e8f0" : "#0f172a";
-
 
   const vendasPorDia = data?.series?.vendasPorDia ?? [];
   const pagosPorDia = data?.series?.pagosPorDia ?? [];
@@ -209,21 +207,21 @@ export default function RelatoriosPage() {
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
-          <div className="text-sm font-medium mb-2" style={{ color: titleColor }}>
+          <div className="mb-2 text-sm font-medium text-gray-900 dark:text-white">
             Vendas por dia
           </div>
           {loading ? <div className="h-[320px] animate-pulse bg-gray-200/50 dark:bg-white/5 rounded-lg" /> : <EChart option={vendasOption} height={320} />}
         </div>
 
         <div className="rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
-          <div className="text-sm font-medium mb-2" style={{ color: titleColor }}>
+          <div className="mb-2 text-sm font-medium text-gray-900 dark:text-white">
             Pagamentos confirmados por dia
           </div>
           {loading ? <div className="h-[320px] animate-pulse bg-gray-200/50 dark:bg-white/5 rounded-lg" /> : <EChart option={pagosOption} height={320} />}
         </div>
 
         <div className="lg:col-span-2 rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
-          <div className="text-sm font-medium mb-2" style={{ color: titleColor }}>
+          <div className="mb-2 text-sm font-medium text-gray-900 dark:text-white">
             Faturamento por Frota
           </div>
           {loading ? <div className="h-[380px] animate-pulse bg-gray-200/50 dark:bg-white/5 rounded-lg" /> : <EChart option={barrasOption} height={380} />}
