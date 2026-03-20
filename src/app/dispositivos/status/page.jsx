@@ -184,7 +184,7 @@ export default function MikrotikStatusPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-            Address-list <span className="font-mono text-gray-500">({listName})</span>
+            Address-list <span className="font-mono text-gray-500 dark:text-gray-400">({listName})</span>
           </h2>
           <span className="text-sm text-gray-600 dark:text-gray-400">Total: {statusCount}</span>
         </div>
@@ -203,7 +203,7 @@ export default function MikrotikStatusPage() {
             <tbody>
               {statusItems.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-6 text-gray-500">
+                  <td colSpan={5} className="text-center py-6 text-gray-500 dark:text-gray-400">
                     (Sem dados — /api/dispositivos/status não retorna address-list)
                   </td>
                 </tr>
@@ -262,7 +262,7 @@ export default function MikrotikStatusPage() {
             <tbody>
               {pppRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-6 text-gray-500">Nenhuma sessão ativa.</td>
+                  <td colSpan={6} className="text-center py-6 text-gray-500 dark:text-gray-400">Nenhuma sessão ativa.</td>
                 </tr>
               ) : (
                 pppRows.map((r, i) => {

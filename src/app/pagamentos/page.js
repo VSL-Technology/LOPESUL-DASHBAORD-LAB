@@ -256,7 +256,7 @@ export default function PagamentosPage() {
           </thead>
           <tbody>
             {carregando ? (
-              <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-500">Carregando...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Carregando...</td></tr>
             ) : (data?.itens?.length ? (
               data.itens.map((r) => (
                 <tr key={r.id} className="border-t border-gray-200 dark:border-gray-700">
@@ -270,9 +270,9 @@ export default function PagamentosPage() {
                       ${r.status === "pago" ? "bg-green-600"
                         : r.status === "pendente" ? "bg-yellow-500"
                         : r.status === "expirado" ? "bg-red-600"
-                        : r.status === "cancelado" ? "bg-gray-600"
+                        : r.status === "cancelado" ? "bg-gray-600 dark:bg-gray-500"
                         : r.status === "falhou" ? "bg-red-800"
-                        : "bg-gray-500"}`}>
+                        : "bg-gray-500 dark:bg-gray-400"}`}>
                       {r.status}
                     </span>
                   </td>

@@ -115,19 +115,19 @@ export default function RoteadoresDebugPage() {
               className="border rounded-lg p-3 bg-white text-slate-900 shadow-sm text-sm space-y-2 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100"
             >
               <div className="font-semibold">
-                {r.nome} <span className="text-xs text-gray-500">({r.id})</span>
+                {r.nome} <span className="text-xs text-gray-500 dark:text-gray-400">({r.id})</span>
               </div>
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-gray-600 dark:text-gray-400">
                 IP: {r.ipLan} · API: {r.portaApi} · SSH: {r.portaSsh}
               </div>
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-gray-600 dark:text-gray-400">
                 WG: {r.wgIp || '—'} · PubKey: {r.wgPublicKey ? `${r.wgPublicKey.slice(0, 16)}...` : '—'}
               </div>
 
               <button
                 type="button"
                 onClick={() => testarStatus(r)}
-                className="mt-1 px-2 py-1 rounded bg-gray-800 text-white text-xs hover:bg-black"
+                className="mt-1 rounded bg-gray-800 px-2 py-1 text-xs text-white hover:bg-black dark:bg-gray-700 dark:hover:bg-gray-600"
               >
                 Testar status
               </button>

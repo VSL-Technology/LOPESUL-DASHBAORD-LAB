@@ -200,7 +200,7 @@ export default function RoteadoresPage() {
           </button>
           <a
             href="/roteadores/debug"
-            className="border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg shadow-sm"
+            className="border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-[#232e47] dark:text-gray-300 dark:hover:bg-[#2b3754]"
           >
             Debug
           </a>

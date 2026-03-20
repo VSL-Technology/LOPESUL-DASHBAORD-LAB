@@ -2,6 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
+const STORAGE_KEY = 'theme';
+const LEGACY_STORAGE_KEY = 'themePreferred';
+
 const ThemeContext = createContext({
   tema: 'claro',
   setTema: () => {},
@@ -13,6 +16,23 @@ function prefersDarkMode() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
+function normalizeStoredTheme(value) {
+  if (value === 'dark' || value === 'escuro') return 'escuro';
+  if (value === 'light' || value === 'claro') return 'claro';
+  return null;
+}
+
+function persistThemeChoice(next) {
+  if (typeof window === 'undefined') return;
+  const value = next === 'escuro' ? 'dark' : 'light';
+  try {
+    window.localStorage.setItem(STORAGE_KEY, value);
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // ignore storage issues
+  }
+}
+
 export function ThemeProvider({ children }) {
   const [tema, setTemaState] = useState('claro');
   const [userOverride, setUserOverride] = useState(false);
@@ -20,8 +40,11 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const stored = window.localStorage.getItem('themePreferred');
-      if (stored === 'claro' || stored === 'escuro') {
+      const stored = normalizeStoredTheme(
+        window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY)
+      );
+      if (stored) {
+        document.documentElement.classList.toggle('dark', stored === 'escuro');
         setTemaState(stored);
         setUserOverride(true);
         return;
@@ -39,11 +62,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     if (!userOverride || typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem('themePreferred', tema);
-    } catch {
-      // ignore storage issues
-    }
+    persistThemeChoice(tema);
   }, [tema, userOverride]);
 
   useEffect(() => {
@@ -61,16 +80,13 @@ export function ThemeProvider({ children }) {
     const resolved = next === 'escuro' ? 'escuro' : 'claro';
     setTemaState(resolved);
     setUserOverride(persist);
-    if (persist && typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem('themePreferred', resolved);
-      } catch {
-        // ignore storage
-      }
+    if (persist) {
+      persistThemeChoice(resolved);
     }
     if (!persist && typeof window !== 'undefined') {
       try {
-        window.localStorage.removeItem('themePreferred');
+        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(LEGACY_STORAGE_KEY);
       } catch {
         // ignore
       }
