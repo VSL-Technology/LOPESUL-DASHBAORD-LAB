@@ -1,7 +1,6 @@
 import callRelay from "@/lib/relayClient";
 import prisma from "@/lib/prisma";
 import { requireDeviceRouter } from "@/lib/device-router";
-import { calcularMinutosPlano } from "@/lib/plan-duration";
 import { obterTokenAtivoPorPedido } from "@/lib/clientToken";
 import { logger } from "@/lib/logger";
 
@@ -16,7 +15,7 @@ interface LiberarAcessoParams {
 }
 
 export async function liberarAcessoInteligente(params: LiberarAcessoParams) {
-  const { pedidoId, mikId, ipAtual, macAtual, modo } = params;
+  const { pedidoId, mikId, ipAtual } = params;
 
   const pedido = await prisma.pedido.findUnique({
     where: { id: pedidoId },
@@ -30,10 +29,6 @@ export async function liberarAcessoInteligente(params: LiberarAcessoParams) {
 
   const tokenAtivo = await obterTokenAtivoPorPedido(pedido.id).catch(() => null);
   const resolvedIp = (ipAtual || pedido.ip || tokenAtivo?.ipInicial || '')?.trim() || null;
-  const resolvedMac =
-    (macAtual || pedido.deviceMac || tokenAtivo?.macInicial || '')
-      ?.trim()
-      .toUpperCase() || null;
 
   let routerInfo: Awaited<ReturnType<typeof requireDeviceRouter>> | null = null;
   try {
@@ -61,40 +56,15 @@ export async function liberarAcessoInteligente(params: LiberarAcessoParams) {
     };
   }
 
-  const minutosPlano = calcularMinutosPlano(pedido.description || pedido);
-  const now = new Date();
-  const expiraEm = new Date(now.getTime() + minutosPlano * 60 * 1000);
-
-  const routerPayload = {
-    host: routerInfo.router.host,
-    user: routerInfo.router.user,
-    pass: routerInfo.router.pass,
-    port: routerInfo.router.port || 8728,
-    secure: routerInfo.router.secure ?? false,
-  };
-
   const payload = {
     pedidoId: pedido.id,
-    orderCode: pedido.code,
-    token: tokenAtivo?.token ?? null,
-    plano: pedido.description || 'Acesso',
-    planoMinutos: minutosPlano,
-    expiresAt: expiraEm.toISOString(),
-    ipAtual: resolvedIp,
-    macAtual: resolvedMac,
-    modo,
-    router: routerPayload,
-    contexto: {
-      deviceId: pedido.deviceId,
-      mikId,
-      deviceIdentifier: pedido.deviceIdentifier,
-      clienteIpInicial: tokenAtivo?.ipInicial ?? null,
-      clienteMacInicial: tokenAtivo?.macInicial ?? null,
-    },
+    mikId: routerInfo.device?.mikId ?? mikId,
+    deviceToken: tokenAtivo?.token ?? null,
   };
 
-  const endpoint =
-    modo === 'RECONEXAO' ? '/relay/resync-device' : '/relay/authorize-by-pedido';
+  // TODO(relay): expose a reconnection contract driven only by deviceToken/session
+  // so the dashboard never needs to send identity data on re-auth flows.
+  const endpoint = '/relay/authorize-by-pedido';
 
   const resp = await callRelay(endpoint, payload, { retries: 1, timeoutMs: 8000 });
   const ok = !!resp && resp.ok === true;

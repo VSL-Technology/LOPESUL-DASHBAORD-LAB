@@ -1,7 +1,7 @@
 // src/app/api/mikrotik/arp/route.js
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireDeviceRouter } from "@/lib/device-router";
+import { findDeviceRecord } from "@/lib/device-router";
 import { logger } from "@/lib/logger";
 import { recordApiMetric } from "@/lib/metrics/index";
 import { relayFetchSigned } from "@/lib/relayFetchSigned";
@@ -43,13 +43,20 @@ export async function GET(req) {
 
     const { ip, deviceId, mikId } = parsed.data;
 
-    let routerInfo;
+    let deviceRecord;
     try {
-      routerInfo = await requireDeviceRouter({ deviceId, mikId });
+      deviceRecord = await findDeviceRecord({ deviceId, mikId });
     } catch (err) {
       return NextResponse.json(
         { error: err?.code || "device_not_found", detail: err?.message },
         err?.code === "device_not_found" ? 404 : 400
+      );
+    }
+
+    if (!deviceRecord?.mikId) {
+      return NextResponse.json(
+        { error: "device_not_found", detail: "Dispositivo sem mikId válido" },
+        { status: 404 }
       );
     }
 
@@ -60,8 +67,7 @@ export async function GET(req) {
       headers: { "x-request-id": requestId },
       body: {
         ip,
-        deviceId: routerInfo.device?.id ?? deviceId ?? null,
-        mikId: routerInfo.device?.mikId ?? mikId ?? null,
+        mikId: deviceRecord.mikId,
       },
     }).catch((err) => {
       logger.warn({ err: err?.message || err }, "[mikrotik/arp] relay lookup failed");

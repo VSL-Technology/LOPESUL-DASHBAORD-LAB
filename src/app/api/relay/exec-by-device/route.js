@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ok, fail, codeFromStatus } from '@/lib/api/response';
 import { requireMutationAuth } from '@/lib/auth/requireMutationAuth';
-import { requireDeviceRouter } from '@/lib/device-router';
+import { findDeviceRecord } from '@/lib/device-router';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
 import { relayFetchSigned } from '@/lib/relayFetchSigned';
@@ -10,11 +10,6 @@ import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-function resolveRelayBaseUrl() {
-  const base = process.env.RELAY_BASE_URL || process.env.RELAY_URL || process.env.RELAY_BASE || '';
-  return base.replace(/\/+$/, '');
-}
 
 export async function OPTIONS() {
   return new Response(null, { status: 204 });
@@ -65,9 +60,9 @@ export async function POST(req) {
     return String(value);
   };
 
-  let routerInfo;
+  let deviceRecord;
   try {
-    routerInfo = await requireDeviceRouter({
+    deviceRecord = await findDeviceRecord({
       deviceId: asString(parsed.data.deviceId),
       mikId: asString(parsed.data.mikId),
     });
@@ -77,20 +72,22 @@ export async function POST(req) {
     return fail('INTERNAL_ERROR', { requestId });
   }
 
+  if (!deviceRecord?.mikId) {
+    recordApiMetric('relay_exec_device', { durationMs: Date.now() - started, ok: false });
+    return fail(codeFromStatus(404), { requestId, status: 404 });
+  }
+
   const payload = {
-    host: routerInfo.router.host,
-    user: routerInfo.router.user,
-    pass: routerInfo.router.pass,
-    port: routerInfo.router.port,
+    mikId: deviceRecord.mikId,
   };
 
   if (sentences && sentences.length) {
     payload.sentences = sentences;
   } else {
-    payload.command = command;
+    payload.sentences = [command];
   }
 
-  const relayBaseUrl = resolveRelayBaseUrl();
+  const relayBaseUrl = (process.env.RELAY_BASE_URL || process.env.RELAY_URL || process.env.RELAY_BASE || '').replace(/\/+$/, '');
   const relayToken = process.env.RELAY_TOKEN_EXEC || '';
   const apiSecret = process.env.RELAY_API_SECRET || '';
 

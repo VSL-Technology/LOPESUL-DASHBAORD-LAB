@@ -7,7 +7,6 @@ import callRelay from '@/lib/relayClient';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
-import { ENV } from '@/lib/env';
 import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 const BodySchema = z.object({
@@ -55,35 +54,59 @@ export async function POST(req) {
       );
     }
 
+    if (!ip || !mac) {
+      return NextResponse.json(
+        { error: 'Informe IP e MAC para iniciar o acesso trial.' },
+        { status: 400 }
+      );
+    }
+
     const deviceCtx = await ensureDeviceRouter({
       deviceId: parsed.data.deviceId || undefined,
       mikId: parsed.data.mikId || undefined,
       ip: ip || undefined,
     });
 
-    const routerPayload = deviceCtx.router || {
-      host: ENV.MIKROTIK_HOST,
-      user: ENV.MIKROTIK_USER,
-      pass: ENV.MIKROTIK_PASS,
-      port: Number(ENV.MIKROTIK_PORT || 8728),
-    };
-
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + parsed.data.minutos * 60 * 1000);
+    const mikId = parsed.data.mikId || deviceCtx.device?.mikId || null;
+    if (!mikId) {
+      return NextResponse.json(
+        { error: 'Não foi possível identificar o roteador para o trial.' },
+        { status: 400 }
+      );
+    }
+
+    // TODO(relay): expose a trial bootstrap that accepts only router/session
+    // identifiers. For now, IP/MAC stay confined to device/hello instead of
+    // being repeated in the authorize payload.
+    const helloResp = await callRelay('/relay/device/hello', {
+      deviceToken: token,
+      mikId,
+      ip,
+      mac,
+      userAgent: req.headers.get('user-agent') || null,
+    }, {
+      retries: 0,
+      timeoutMs: 5000,
+      requestId,
+    });
+
+    if (!helloResp.ok) {
+      logger.warn(
+        { error: helloResp.error, status: helloResp.status },
+        '[TRIAL] falha ao sincronizar device com relay'
+      );
+      return NextResponse.json(
+        { error: 'Não foi possível sincronizar o dispositivo trial.', details: helloResp.error },
+        { status: 502 }
+      );
+    }
 
     const payload = {
-      token,
-      plano: 'TRIAL',
-      planoMinutos: parsed.data.minutos,
-      expiresAt: expiresAt.toISOString(),
-      ipAtual: ip,
-      macAtual: mac,
-      modo: 'TRIAL',
-      router: routerPayload,
-      contexto: {
-        deviceId: deviceCtx.device?.id || parsed.data.deviceId || null,
-        mikId: parsed.data.mikId || deviceCtx.device?.mikId || null,
-      },
+      pedidoId: `trial:${token}`,
+      mikId,
+      deviceToken: helloResp.json?.deviceToken || token,
     };
 
     const resp = await callRelay('/relay/authorize-by-pedido', payload, {
@@ -126,7 +149,7 @@ export async function POST(req) {
     return NextResponse.json({
       ok: true,
       token,
-      expiresAt: payload.expiresAt,
+      expiresAt: expiresAt.toISOString(),
       relay: resp.json || null,
     });
   } catch (error) {

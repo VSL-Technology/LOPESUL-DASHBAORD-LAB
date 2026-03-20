@@ -38,6 +38,8 @@ export async function POST(req) {
       return json({ ok: false, code: 'relay_api_secret_missing' }, 500);
     }
 
+    // TODO(relay): allow refresh by sid/router identity only, so this route can
+    // stop forwarding network identity data to the Relay.
     const payload = { sid, ip, mac, identity, routerHint };
 
     const result = await relayIdentityRefresh({

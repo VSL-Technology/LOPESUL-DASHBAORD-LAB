@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { ok, fail, codeFromStatus } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { requireDeviceRouter } from '@/lib/device-router';
+import { findDeviceRecord } from '@/lib/device-router';
 import { logger } from '@/lib/logger';
 import { recordApiMetric } from '@/lib/metrics/index';
 import { relayFetchSigned } from '@/lib/relayFetchSigned';
@@ -57,9 +57,9 @@ export async function POST(req) {
     return String(value);
   };
 
-  let routerInfo;
+  let deviceRecord;
   try {
-    routerInfo = await requireDeviceRouter({
+    deviceRecord = await findDeviceRecord({
       deviceId: asString(deviceId ?? dispositivoId),
       mikId: asString(mikId ?? routerId),
     });
@@ -74,16 +74,22 @@ export async function POST(req) {
     });
   }
 
+  if (!deviceRecord?.mikId) {
+    recordApiMetric('command_exec', { durationMs: Date.now() - started, ok: false });
+    return fail(codeFromStatus(404), {
+      requestId,
+      status: 404,
+      meta: { code: 'device_resolution_failed' },
+    });
+  }
+
   try {
     const out = await relayFetchSigned({
       method: 'POST',
-      originalUrl: '/relay/exec',
+      originalUrl: '/relay/exec-by-device',
       body: {
-        host: routerInfo.router.host,
-        user: routerInfo.router.user,
-        pass: routerInfo.router.pass,
-        port: routerInfo.router.port,
-        command,
+        mikId: deviceRecord.mikId,
+        sentences: [command],
       },
       requestId,
     });
