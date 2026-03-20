@@ -137,7 +137,19 @@ async function relaySignedCall<T>(path: string, init?: RequestInit & { requestId
 
   if (!base) throw new Error('Missing RELAY_BASE_URL/RELAY_URL');
   if (!token) throw new Error('Missing RELAY_TOKEN/RELAY_API_TOKEN');
-  if (!apiSecret) throw new Error('Missing RELAY_API_SECRET');
+  if (!apiSecret) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[relay] RELAY_API_SECRET not set — skipping signed call');
+      return {
+        ok: false,
+        error: 'relay_not_configured',
+        state: 'FAILED',
+        retryInMs: 0,
+        messageCode: 'relay_not_configured',
+      } as T;
+    }
+    throw new Error('Missing RELAY_API_SECRET');
+  }
 
   const method = String(init?.method || 'GET').toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE';
   const headers = (init?.headers || {}) as Record<string, string>;

@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getRequestAuth } from '@/lib/auth/context';
 import { relayIdentityStatus } from '@/lib/relayClient';
+import { logger } from '@/lib/logger';
 import { getOrCreateRequestId } from '@/lib/security/requestId';
 
 export async function GET(_req, context) {
@@ -35,6 +36,13 @@ export async function GET(_req, context) {
 
     const identity = roteador.nome || roteador.id;
     const status = await relayIdentityStatus(identity, { requestId });
+
+    if (!status?.ok && status?.error === 'relay_not_configured') {
+      return NextResponse.json(
+        { status: 'unconfigured' },
+        { status: 200, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
 
     const statusMikrotik =
       status.state === 'OK' ? 'ONLINE' :
