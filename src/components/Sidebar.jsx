@@ -91,11 +91,7 @@ export default function Sidebar({
 
   const isActive = (href) => pathname === href || pathname?.startsWith(`${href}/`);
   const ThemeIcon = tema === 'escuro' ? Sun : Moon;
-  const rawName = user?.nome || user?.username || user?.email || '';
-  const cleanedName = rawName.replace(/^user\s+/i, '').trim();
-  const userName = cleanedName || 'Operador';
   const userEmail = user?.email || user?.username || 'Sem e-mail';
-  const initial = userName.charAt(0).toUpperCase() || 'U';
 
   const collapsibleLabelClasses = collapsed
     ? 'md:max-w-0 md:opacity-0 md:group-hover/sidebar:max-w-[12rem] md:group-hover/sidebar:opacity-100 lg:max-w-[12rem] lg:opacity-100'
@@ -121,46 +117,24 @@ export default function Sidebar({
           'lg:w-60 lg:translate-x-0'
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b border-white/10 px-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-sm font-semibold text-white">
-              L
-            </div>
-            <div
-              className={cx(
-                'overflow-hidden whitespace-nowrap transition-all duration-200',
-                collapsibleLabelClasses
-              )}
-            >
-              <p className="text-sm font-semibold tracking-[0.2em] text-white">LOPESUL</p>
-              <p className="text-xs text-white/50">Dashboard</p>
-            </div>
-          </div>
-
+        <div className="relative border-b border-white/10 px-4 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-white/70 hover:bg-white/10 hover:text-white md:hidden"
+            className="absolute right-3 top-3 rounded-lg p-2 text-white/70 hover:bg-white/10 hover:text-white md:hidden"
             aria-label="Fechar menu"
           >
             <X size={18} />
           </button>
-        </div>
 
-        <div className="border-b border-white/10 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white">
-              {initial}
-            </div>
-            <div
-              className={cx(
-                'min-w-0 overflow-hidden whitespace-nowrap transition-all duration-200',
-                collapsibleLabelClasses
-              )}
-            >
-              <p className="truncate text-sm font-medium text-white">{userName}</p>
-              <p className="truncate text-xs text-white/50">{userEmail}</p>
-            </div>
+          <div
+            className={cx(
+              'overflow-hidden rounded-xl border border-white/15 bg-white/5 px-3 py-3 whitespace-nowrap transition-all duration-200',
+              collapsibleLabelClasses
+            )}
+          >
+            <p className="text-xs uppercase tracking-wide text-white/70">Usuário logado</p>
+            <p className="truncate text-sm font-semibold text-white">{userEmail}</p>
           </div>
         </div>
 
