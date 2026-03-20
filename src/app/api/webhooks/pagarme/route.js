@@ -506,6 +506,7 @@ export async function POST(req) {
             { orderCode: basics.orderCode, error: autoReleaseErr?.message || autoReleaseErr },
             "[WEBHOOK] Falha ao liberar cliente automático"
           );
+          throw autoReleaseErr;
         }
       }
 
@@ -513,22 +514,10 @@ export async function POST(req) {
         try {
           await markPaidAndRelease(basics.orderCode, { hookId, basics, clientIp });
           logger.info({ orderCode: basics.orderCode }, "[WEBHOOK] Liberação concluída");
-          await auditLog({
-            requestId,
-            event: 'PAYMENT_CONFIRMED',
-            entityId: basics.orderCode,
-            ip: clientIp,
-            result: 'SUCCESS',
-            metadata: {
-              provider: 'pagarme',
-              orderCode: basics.orderCode,
-              eventId,
-            },
-          });
         } catch (releaseErr) {
           logger.error(
             { orderCode: basics.orderCode, error: releaseErr?.message || releaseErr },
-            "[WEBHOOK] Erro ao liberar acesso"
+            "[WEBHOOK] Liberação falhou"
           );
           await auditLog({
             requestId,
@@ -537,8 +526,22 @@ export async function POST(req) {
             ip: clientIp,
             result: 'FAIL',
             metadata: { error: String(releaseErr?.message || releaseErr), eventId },
-          });
+          }).catch(() => {});
+          throw releaseErr;
         }
+
+        await auditLog({
+          requestId,
+          event: 'PAYMENT_CONFIRMED',
+          entityId: basics.orderCode,
+          ip: clientIp,
+          result: 'SUCCESS',
+          metadata: {
+            provider: 'pagarme',
+            orderCode: basics.orderCode,
+            eventId,
+          },
+        }).catch(() => {});
       }
 
       await prisma.webhookEvent.update({
@@ -553,7 +556,7 @@ export async function POST(req) {
     } catch (processingErr) {
       logger.error(
         { eventId, uniqueKey, error: processingErr?.message || processingErr },
-        "[WEBHOOK] Falha durante processamento"
+        "[WEBHOOK] processing failed"
       );
       await prisma.webhookEvent.update({
         where: { id: webhookEvent.id },
@@ -567,7 +570,7 @@ export async function POST(req) {
         );
       });
 
-      return fail('INTERNAL_ERROR', { requestId, status: 500 });
+      return Response.json({ error: "processing failed" }, { status: 500 });
     }
   } catch (err) {
     logger.error({ err, requestId, route: 'api_webhooks_pagarme' }, "[WEBHOOK] Erro inesperado");
