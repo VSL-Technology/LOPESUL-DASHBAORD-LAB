@@ -50,15 +50,6 @@ const STATUS_OPTS = [
   { key: "expirado", label: "Expirado" },
 ];
 
-function paymentStatusClasses(status) {
-  if (status === "pago") return "bg-green-600";
-  if (status === "pendente") return "bg-yellow-500";
-  if (status === "expirado") return "bg-red-600";
-  if (status === "cancelado") return "bg-gray-600";
-  if (status === "falhou") return "bg-red-800";
-  return "bg-gray-500";
-}
-
 // ---------- page ----------
 export default function PagamentosPage() {
   // período default: 30d
@@ -161,8 +152,8 @@ export default function PagamentosPage() {
       </h1>
 
       {/* filtros */}
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="mb-6 flex flex-col gap-3 md:gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 dark:text-gray-400">Período</label>
             <select
@@ -205,7 +196,7 @@ export default function PagamentosPage() {
           )}
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 dark:text-gray-400">Status</label>
             <select
@@ -224,7 +215,7 @@ export default function PagamentosPage() {
               value={q}
               onChange={(e)=>setQ(e.target.value)}
               placeholder="Descrição, plano, MAC, IP, roteador..."
-              className="min-w-0 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-[#232e47] text-gray-800 dark:text-gray-100 sm:min-w-[260px]"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-[#232e47] text-gray-800 dark:text-gray-100 min-w-[260px]"
             />
           </div>
 
@@ -247,65 +238,8 @@ export default function PagamentosPage() {
         </p>
       )}
 
-      <div className="space-y-3 md:hidden">
-        {carregando ? (
-          <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-center text-gray-500 shadow dark:border-gray-700 dark:bg-[#232e47] dark:text-gray-400">
-            Carregando...
-          </div>
-        ) : data?.itens?.length ? (
-          data.itens.map((r) => (
-            <article
-              key={r.id}
-              className="rounded-xl border border-gray-200 bg-white p-4 shadow transition-colors dark:border-gray-700 dark:bg-[#232e47]"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{r.descricao || "-"}</p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{r.plano || "-"}</p>
-                </div>
-                <span className={`rounded-full px-2 py-1 text-xs text-white ${paymentStatusClasses(r.status)}`}>
-                  {r.status}
-                </span>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-gray-600 dark:text-gray-300">
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Valor</p>
-                  <p>{brl(r.valor)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Forma</p>
-                  <p>{r.forma}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Data</p>
-                  <p>{fmtDateBR(r.data)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">IP</p>
-                  <p>{r.ip || "-"}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">MAC</p>
-                  <p className="break-all">{r.mac || "-"}</p>
-                </div>
-              </div>
-              <button
-                className="mt-4 text-sm text-blue-600 hover:underline dark:text-blue-400"
-                onClick={() => alert(JSON.stringify(r, null, 2))}
-              >
-                Ver Detalhes
-              </button>
-            </article>
-          ))
-        ) : (
-          <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-center text-gray-400 shadow dark:border-gray-700 dark:bg-[#232e47] dark:text-gray-500">
-            Nenhum pagamento encontrado.
-          </div>
-        )}
-      </div>
-
       {/* tabela */}
-      <div className="hidden overflow-x-auto rounded-xl bg-white shadow transition-colors dark:bg-[#232e47] md:block">
+      <div className="overflow-x-auto rounded-xl shadow bg-white dark:bg-[#232e47] transition-colors">
         <table className="min-w-full text-sm text-left text-gray-700 dark:text-gray-200">
           <thead className="bg-gray-100 dark:bg-[#1a2233] text-gray-700 dark:text-gray-300 uppercase text-xs">
             <tr>
@@ -332,7 +266,13 @@ export default function PagamentosPage() {
                   <td className="px-4 py-2">{r.forma}</td>
                   <td className="px-4 py-2">{fmtDateBR(r.data)}</td>
                   <td className="px-4 py-2">
-                    <span className={`px-2 py-1 rounded-full text-white text-xs ${paymentStatusClasses(r.status)}`}>
+                    <span className={`px-2 py-1 rounded-full text-white text-xs
+                      ${r.status === "pago" ? "bg-green-600"
+                        : r.status === "pendente" ? "bg-yellow-500"
+                        : r.status === "expirado" ? "bg-red-600"
+                        : r.status === "cancelado" ? "bg-gray-600"
+                        : r.status === "falhou" ? "bg-red-800"
+                        : "bg-gray-500"}`}>
                       {r.status}
                     </span>
                   </td>

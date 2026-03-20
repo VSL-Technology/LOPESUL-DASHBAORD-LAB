@@ -14,9 +14,6 @@ const DUR_OPTIONS = [
   { key: "permanente", label: "Permanente (~100 dias)", seconds: 100 * 24 * 60 * 60 },
 ];
 
-const DEFAULT_CARD_CLASS =
-  "rounded-2xl border border-slate-700/20 bg-white p-6 shadow dark:bg-[#232e47]";
-
 function secondsToKey(seconds) {
   const found = DUR_OPTIONS.find((item) => item.seconds === seconds);
   return found?.key ?? "4h";
@@ -122,15 +119,15 @@ export default function ConfiguracoesPage() {
 
   return (
     <div className="p-6 md:p-8 bg-[#F0F6FA] dark:bg-[#1a2233] min-h-screen transition-colors">
-      <div className="mx-auto max-w-2xl space-y-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Configurações</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Somente operadores Master podem ajustar estes parâmetros críticos.
-          </p>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Configurações</h1>
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Somente operadores Master podem ajustar estes parâmetros críticos.
+        </p>
+      </div>
 
-        <section className={DEFAULT_CARD_CLASS}>
+      <div className="space-y-8 max-w-4xl">
+        <section className="rounded-2xl border border-slate-700/20 bg-white dark:bg-[#232e47] p-6 shadow">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             Sessão do Dashboard
           </h2>
@@ -161,7 +158,7 @@ export default function ConfiguracoesPage() {
           </button>
         </section>
 
-        <section className={DEFAULT_CARD_CLASS}>
+        <section className="rounded-2xl border border-slate-700/20 bg-white dark:bg-[#232e47] p-6 shadow">
           <form onSubmit={salvarPreferenciasLocais} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
@@ -225,7 +222,7 @@ export default function ConfiguracoesPage() {
           </div>
         </section>
 
-        <section className={DEFAULT_CARD_CLASS}>
+        <section className="rounded-2xl border border-slate-700/20 bg-white dark:bg-[#232e47] p-6 shadow">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">

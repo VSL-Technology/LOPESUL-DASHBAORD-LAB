@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "../../components/ProtectedRoute";
-import { Card } from "@/components/ui/Card";
-import { MetricCard } from "@/components/ui/MetricCard";
 
 const DASH_REFRESH_MS = 30_000;
 const STATUS_REFRESH_MS = 15_000;
@@ -16,22 +14,22 @@ const fmtBRL = (value) =>
 
 function kpiCards(summary) {
   return [
-    { label: "Receita Hoje", value: fmtBRL(summary.receitaHoje), variant: "info" },
-    { label: "Receita 30 Dias", value: fmtBRL(summary.receita30Dias), variant: "default" },
-    { label: "Total de Vendas", value: summary.totalVendas, variant: "success" },
-    { label: "Sessões Ativas", value: summary.sessoesAtivas, variant: "default" },
-    { label: "Operadores Ativos", value: summary.operadoresAtivos, variant: "warning" },
+    { label: "Receita Hoje", value: fmtBRL(summary.receitaHoje) },
+    { label: "Receita 30 Dias", value: fmtBRL(summary.receita30Dias) },
+    { label: "Total de Vendas", value: summary.totalVendas },
+    { label: "Sessões Ativas", value: summary.sessoesAtivas },
+    { label: "Operadores Ativos", value: summary.operadoresAtivos },
   ];
 }
 
 function statusTone(online, messageCode) {
   if (messageCode === "RELAY_NOT_CONFIGURED") {
-    return "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200";
+    return "border-blue-500/20 bg-blue-500/10 text-blue-100";
   }
   if (online) {
-    return "border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200";
+    return "border-blue-500/30 bg-blue-500/10 text-blue-100";
   }
-  return "border-gray-200 bg-gray-50 text-gray-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200";
+  return "border-slate-700 bg-slate-900 text-slate-200";
 }
 
 function resolveStatusLabel(item, fallbackLabel) {
@@ -181,16 +179,16 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen rounded-3xl bg-white text-gray-900 dark:bg-[#0f172a] dark:text-[#e2e8f0]">
+      <div className="min-h-screen rounded-3xl bg-[#0f172a] text-[#e2e8f0]">
         <div className="space-y-6 p-6 md:p-8">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">Dashboard</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <h1 className="text-3xl font-semibold text-[#e2e8f0]">Dashboard</h1>
+              <p className="text-sm text-[#94a3b8]">
                 Visão executiva consolidada de receita, sessões e status da operação.
               </p>
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="text-sm text-[#94a3b8]">
               {summary.periodo30?.from && summary.periodo30?.to
                 ? `Janela 30 dias: ${new Date(summary.periodo30.from).toLocaleDateString("pt-BR")} a ${new Date(
                     summary.periodo30.to
@@ -205,30 +203,35 @@ export default function DashboardPage() {
             </div>
           ) : null}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {kpiCards(summary).map((item) => (
-              <MetricCard
+              <div
                 key={item.label}
-                label={item.label}
-                value={loading ? "..." : item.value}
-                variant={item.variant}
-              />
+                className="rounded-2xl border border-slate-800 bg-[#1e293b] p-5 shadow-[0_10px_30px_rgba(15,23,42,0.35)]"
+              >
+                <p className="text-sm text-[#94a3b8]">{item.label}</p>
+                <p className="mt-3 text-3xl font-semibold tracking-tight text-[#e2e8f0]">
+                  {loading ? "..." : item.value}
+                </p>
+              </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.5fr_1fr]">
-            <Card
-              className="shadow-sm"
-              title="Status Geral"
-              subtitle="Indicadores executivos da conectividade central."
-            >
+          <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+            <section className="rounded-2xl border border-slate-800 bg-[#1e293b] p-6 shadow-[0_10px_30px_rgba(15,23,42,0.35)]">
               <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[#e2e8f0]">Status Geral</h2>
+                  <p className="text-sm text-[#94a3b8]">
+                    Indicadores executivos da conectividade central.
+                  </p>
+                </div>
                 <div className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-100">
                   Atualização automática
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
                 {[
                   {
                     title: "Mikrotik",
@@ -243,59 +246,52 @@ export default function DashboardPage() {
                 ].map(({ title, item, fallback }) => (
                   <div
                     key={title}
-                    className={`min-w-0 rounded-2xl border p-5 ${statusTone(item.online, item.messageCode)}`}
+                    className={`rounded-2xl border p-5 ${statusTone(item.online, item.messageCode)}`}
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-                        {item.messageCode === "RELAY_NOT_CONFIGURED" ? (
-                          <span className="mt-2 inline-flex rounded bg-amber-100 px-2 py-1 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                            Relay não configurado
-                          </span>
-                        ) : (
-                          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-                            {resolveStatusLabel(item, fallback)}
-                          </p>
-                        )}
+                        <p className="text-sm text-[#94a3b8]">{title}</p>
+                        <p className="mt-2 text-2xl font-semibold text-[#e2e8f0]">
+                          {resolveStatusLabel(item, fallback)}
+                        </p>
                       </div>
                       <span className="mt-1 h-3 w-3 rounded-full bg-blue-400" />
                     </div>
-                    <div className="mt-4 space-y-1 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="mt-4 space-y-1 text-sm text-[#94a3b8]">
                       <p>{item.nome || "Sem identidade disponível"}</p>
                       <p>{item.ip || "Sem IP disponível"}</p>
                     </div>
                   </div>
                 ))}
               </div>
-            </Card>
+            </section>
 
-            <Card
-              className="shadow-sm"
-              title="Resumo de Vendas"
-              subtitle="Distribuição operacional dos pagamentos."
-            >
+            <section className="rounded-2xl border border-slate-800 bg-[#1e293b] p-6 shadow-[0_10px_30px_rgba(15,23,42,0.35)]">
+              <h2 className="text-lg font-semibold text-[#e2e8f0]">Resumo de Vendas</h2>
+              <p className="mt-1 text-sm text-[#94a3b8]">Distribuição operacional dos pagamentos.</p>
+
               <div className="mt-6 space-y-4">
                 {paymentBars.map((item) => (
                   <div key={item.label} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-900 dark:text-white">{item.label}</span>
-                      <span className="text-gray-500 dark:text-gray-400">{item.value}</span>
+                      <span className="text-[#e2e8f0]">{item.label}</span>
+                      <span className="text-[#94a3b8]">{item.value}</span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-900">
+                    <div className="h-2 rounded-full bg-slate-900">
                       <div className={`h-2 rounded-full ${item.color}`} style={{ width: item.width }} />
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 rounded-2xl border border-gray-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Receita consolidada</p>
-                <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                <p className="text-sm text-[#94a3b8]">Receita consolidada</p>
+                <p className="mt-2 text-2xl font-semibold text-[#e2e8f0]">
                   {fmtBRL(summary.receita30Dias)}
                 </p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Base de 30 dias, sem detalhamento de sessões.</p>
+                <p className="mt-1 text-xs text-[#94a3b8]">Base de 30 dias, sem detalhamento de sessões.</p>
               </div>
-            </Card>
+            </section>
           </div>
         </div>
       </div>

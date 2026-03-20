@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import EChart from "@/components/EChart";
-import { Card } from "@/components/ui/Card";
-import { MetricCard } from "@/components/ui/MetricCard";
 
 
 
@@ -17,16 +15,6 @@ function addDays(d, n) {
 }
 function iso(d) {
   return new Date(d).toISOString().slice(0, 10);
-}
-
-function formatChartLabel(d) {
-  const label = typeof d === 'string'
-    ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-    : d instanceof Date
-    ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-    : String(d);
-
-  return label === 'Invalid Date' ? String(d ?? '') : label;
 }
 
 export default function RelatoriosPage() {
@@ -59,6 +47,8 @@ export default function RelatoriosPage() {
   const isDark = typeof window !== "undefined" && document.documentElement.classList.contains("dark");
   const axisColor = isDark ? "#a3aed0" : "#475569";
   const gridColor = isDark ? "#334155" : "#e5e7eb";
+  const titleColor = isDark ? "#e2e8f0" : "#0f172a";
+
 
   const vendasPorDia = data?.series?.vendasPorDia ?? [];
   const pagosPorDia = data?.series?.pagosPorDia ?? [];
@@ -80,10 +70,7 @@ export default function RelatoriosPage() {
     xAxis: {
       type: "category",
       boundaryGap: false,
-      axisLabel: {
-        color: axisColor,
-        formatter: (value) => formatChartLabel(value),
-      },
+      axisLabel: { color: axisColor },
       axisLine: { lineStyle: { color: gridColor } },
       data: [],
     },
@@ -113,11 +100,7 @@ export default function RelatoriosPage() {
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => fmtBRL(v) },
     xAxis: {
       type: "category",
-      axisLabel: {
-        color: axisColor,
-        rotate: frotaLabels.some(n => (n?.length ?? 0) > 12) ? 30 : 0,
-        formatter: (value) => formatChartLabel(value),
-      },
+      axisLabel: { color: axisColor, rotate: frotaLabels.some(n => (n?.length ?? 0) > 12) ? 30 : 0 },
       axisLine: { lineStyle: { color: gridColor } },
       data: frotaLabels,
     },
@@ -135,7 +118,7 @@ export default function RelatoriosPage() {
 
   return (
     <div className="p-6 md:p-8 bg-transparent min-h-screen transition-colors">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
             Relatórios e Análises
@@ -145,7 +128,7 @@ export default function RelatoriosPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2">
           <select
             value={range}
             onChange={(e) => setRange(e.target.value)}
@@ -165,65 +148,69 @@ export default function RelatoriosPage() {
       </div>
 
       {/* KPIs com cores suaves */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Vendas (total) — amarelo */}
-        <MetricCard
-          label="Vendas (total)"
-          value={fmtBRL(resumo.totalVendas ?? 0)}
-          sub={`${resumo.qtdVendas ?? 0} operações`}
-          variant="warning"
-        />
+        <div className="
+          rounded-xl p-4 shadow border
+          bg-yellow-50 border-yellow-200 text-yellow-900
+          dark:bg-yellow-500/10 dark:border-yellow-700 dark:text-yellow-200
+        ">
+          <div className="text-sm opacity-90">Vendas (total)</div>
+          <div className="mt-1 text-2xl font-bold">{fmtBRL(resumo.totalVendas ?? 0)}</div>
+          <div className="text-xs opacity-80">{resumo.qtdVendas ?? 0} operações</div>
+        </div>
 
-        <MetricCard
-          label="Pagamentos confirmados"
-          value={fmtBRL(resumo.receita ?? 0)}
-          sub={`${resumo.pagamentos?.pagos ?? 0} pagos • ${resumo.pagamentos?.pendentes ?? 0} pend. • ${resumo.pagamentos?.expirados ?? 0} exp.`}
-          variant="success"
-        />
+        {/* Pagamentos confirmados — verde */}
+        <div className="
+          rounded-xl p-4 shadow border
+          bg-green-50 border-green-200 text-green-900
+          dark:bg-green-500/10 dark:border-green-700 dark:text-green-200
+        ">
+          <div className="text-sm opacity-90">Pagamentos confirmados</div>
+          <div className="mt-1 text-2xl font-bold">{fmtBRL(resumo.receita ?? 0)}</div>
+          <div className="text-xs opacity-80">
+            {resumo.pagamentos?.pagos ?? 0} pagos • {resumo.pagamentos?.pendentes ?? 0} pend. • {resumo.pagamentos?.expirados ?? 0} exp.
+          </div>
+        </div>
 
-        <MetricCard
-          label="Operação"
-          value={`${data?.inventario?.frotas ?? 0} frotas / ${data?.inventario?.dispositivos ?? 0} disp.`}
-          sub={`${data?.operacao?.operadores ?? 0} oper. • ${data?.operacao?.sessoesAtivas ?? 0} sessões ativas`}
-          variant="info"
-        />
+        {/* Operação — azul */}
+        <div className="
+          rounded-xl p-4 shadow border
+          bg-blue-50 border-blue-200 text-blue-900
+          dark:bg-blue-500/10 dark:border-blue-700 dark:text-blue-200
+        ">
+          <div className="text-sm opacity-90">Operação</div>
+          <div className="mt-1 text-2xl font-bold">
+            {data?.inventario?.frotas ?? 0} frotas / {data?.inventario?.dispositivos ?? 0} disp.
+          </div>
+          <div className="text-xs opacity-80">
+            {data?.operacao?.operadores ?? 0} oper. • {data?.operacao?.sessoesAtivas ?? 0} sessões ativas
+          </div>
+        </div>
       </div>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="shadow dark:bg-[#111827]" title="Vendas por dia">
-          <div className="min-h-[200px] h-[260px] sm:h-[320px]">
-            {loading ? (
-              <div className="h-full animate-pulse rounded-lg bg-gray-200/50 dark:bg-white/5" />
-            ) : (
-              <EChart option={vendasOption} height="100%" />
-            )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
+          <div className="text-sm font-medium mb-2" style={{ color: titleColor }}>
+            Vendas por dia
           </div>
-        </Card>
+          {loading ? <div className="h-[320px] animate-pulse bg-gray-200/50 dark:bg-white/5 rounded-lg" /> : <EChart option={vendasOption} height={320} />}
+        </div>
 
-        <Card className="shadow dark:bg-[#111827]" title="Pagamentos confirmados por dia">
-          <div className="min-h-[200px] h-[260px] sm:h-[320px]">
-            {loading ? (
-              <div className="h-full animate-pulse rounded-lg bg-gray-200/50 dark:bg-white/5" />
-            ) : pagosPorDia.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-gray-400">
-                Nenhum dado no período
-              </div>
-            ) : (
-              <EChart option={pagosOption} height="100%" />
-            )}
+        <div className="rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
+          <div className="text-sm font-medium mb-2" style={{ color: titleColor }}>
+            Pagamentos confirmados por dia
           </div>
-        </Card>
+          {loading ? <div className="h-[320px] animate-pulse bg-gray-200/50 dark:bg-white/5 rounded-lg" /> : <EChart option={pagosOption} height={320} />}
+        </div>
 
-        <Card className="shadow dark:bg-[#111827] lg:col-span-2" title="Faturamento por Frota">
-          <div className="min-h-[200px] h-[280px] sm:h-[380px]">
-            {loading ? (
-              <div className="h-full animate-pulse rounded-lg bg-gray-200/50 dark:bg-white/5" />
-            ) : (
-              <EChart option={barrasOption} height="100%" />
-            )}
+        <div className="lg:col-span-2 rounded-xl p-4 shadow bg-white dark:bg-[#111827]">
+          <div className="text-sm font-medium mb-2" style={{ color: titleColor }}>
+            Faturamento por Frota
           </div>
-        </Card>
+          {loading ? <div className="h-[380px] animate-pulse bg-gray-200/50 dark:bg-white/5 rounded-lg" /> : <EChart option={barrasOption} height={380} />}
+        </div>
       </div>
     </div>
   );
