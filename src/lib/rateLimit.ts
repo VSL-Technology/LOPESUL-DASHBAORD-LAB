@@ -8,6 +8,14 @@ import Redis from 'ioredis';
 let redisClient: Redis | null = null;
 let redisConnectFailed = false;
 
+function shouldLogRedisFallback(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  const isExpectedLocalError =
+    message.includes('ENOTFOUND') || message.includes('ETIMEDOUT');
+
+  return !isExpectedLocalError || process.env.NODE_ENV !== 'development';
+}
+
 function getRedis(): Redis | null {
   if (redisConnectFailed) return null;
   if (!process.env.REDIS_URL) return null;
@@ -22,7 +30,12 @@ function getRedis(): Redis | null {
       });
 
       redisClient.on('error', (err) => {
-        console.error('[RATE_LIMIT] Redis connection error — falling back to in-memory', err?.message ?? err);
+        if (shouldLogRedisFallback(err)) {
+          console.warn(
+            '[RATE_LIMIT] Redis connection error — falling back to in-memory',
+            err?.message ?? err
+          );
+        }
         redisConnectFailed = true;
         redisClient = null;
       });
@@ -114,7 +127,12 @@ export async function rateLimit(params: RateLimitParams): Promise<RateLimitResul
     try {
       return await redisRateLimit(redis, key, limit, windowSecs);
     } catch (err) {
-      console.error('[RATE_LIMIT] Redis error — falling back to in-memory', (err as Error)?.message ?? err);
+      if (shouldLogRedisFallback(err)) {
+        console.warn(
+          '[RATE_LIMIT] Redis connection error — falling back to in-memory',
+          (err as Error)?.message ?? err
+        );
+      }
       redisConnectFailed = true;
       redisClient = null;
     }
