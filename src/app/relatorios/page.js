@@ -17,6 +17,16 @@ function iso(d) {
   return new Date(d).toISOString().slice(0, 10);
 }
 
+function formatChartLabel(d) {
+  const label = typeof d === 'string'
+    ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    : d instanceof Date
+    ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    : String(d);
+
+  return label === 'Invalid Date' ? String(d ?? '') : label;
+}
+
 export default function RelatoriosPage() {
   const [range, setRange] = useState("30"); // "7", "30", "90"
   const [loading, setLoading] = useState(true);
@@ -70,7 +80,10 @@ export default function RelatoriosPage() {
     xAxis: {
       type: "category",
       boundaryGap: false,
-      axisLabel: { color: axisColor },
+      axisLabel: {
+        color: axisColor,
+        formatter: (value) => formatChartLabel(value),
+      },
       axisLine: { lineStyle: { color: gridColor } },
       data: [],
     },
@@ -100,7 +113,11 @@ export default function RelatoriosPage() {
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => fmtBRL(v) },
     xAxis: {
       type: "category",
-      axisLabel: { color: axisColor, rotate: frotaLabels.some(n => (n?.length ?? 0) > 12) ? 30 : 0 },
+      axisLabel: {
+        color: axisColor,
+        rotate: frotaLabels.some(n => (n?.length ?? 0) > 12) ? 30 : 0,
+        formatter: (value) => formatChartLabel(value),
+      },
       axisLine: { lineStyle: { color: gridColor } },
       data: frotaLabels,
     },
