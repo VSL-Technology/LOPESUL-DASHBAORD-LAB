@@ -1,5 +1,7 @@
 import { vi } from 'vitest'
 
+vi.mock('server-only', () => ({}))
+
 vi.mock('ioredis', () => {
   const MockRedis = vi.fn().mockImplementation(() => ({
     set: vi.fn().mockResolvedValue('OK'),
