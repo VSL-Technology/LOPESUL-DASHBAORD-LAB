@@ -1,0 +1,19 @@
+services:
+  dashboard:
+    build: .
+    container_name: dashboard-real
+    restart: always
+    env_file:
+      - .env
+    networks:
+      - lopesul-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`painel.3fconnet.cloud`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=le"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=3000"
+
+networks:
+  lopesul-network:
+    external: true

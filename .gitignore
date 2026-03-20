@@ -1,0 +1,80 @@
+# =========================
+# Node / Next.js
+# =========================
+node_modules/
+.next/
+.next/cache/
+out/
+dist/
+build/
+.turbo/
+.vercel/
+
+# =========================
+# Cobertura / Relatórios
+# =========================
+coverage/
+*.lcov
+
+# =========================
+# Logs
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# =========================
+# Sistema / OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+.claude/
+
+# =========================
+# Ambiente / Secrets
+# =========================
+.env
+.env.*
+.env.local
+.envrc
+.local
+*.local
+# .env.example NÃO deve ser ignorado — contém apenas placeholders e deve ser versionado
+
+# =========================
+# Prisma / Banco local
+# =========================
+/src/generated/prisma
+prisma/dev.db*
+prisma/*.sqlite*
+patch.sql
+
+# =========================
+# Arquivos temporários / backup
+# =========================
+*.bak
+*.tmp
+*.swp
+**/.DS_Store
+/tmp/
+/logs/
+
+# =========================
+# Secrets adicionais / certificados
+# =========================
+*.pem
+*.key
+*.crt
+relay/.env
+relay/.env.*
+relay/
+RELAY-CEREBRO-INFRA/
+tsconfig.tsbuildinfo

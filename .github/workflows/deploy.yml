@@ -1,0 +1,17 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    permissions: {}
+    runs-on: self-hosted
+
+    steps:
+      - name: Deploy
+        run: |
+          cd /opt/lopesul/apps/dashboard
+          bash scripts/deploy-safe.sh
