@@ -6,6 +6,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
+
   experimental: {
     // ✅ Next 15.5 espera um OBJETO aqui (boolean gera warning)
     serverActions: {
