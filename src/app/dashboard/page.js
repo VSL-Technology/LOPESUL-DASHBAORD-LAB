@@ -301,7 +301,10 @@ export default function DashboardPage() {
                 {paymentBars.map((item) => (
                   <div key={item.label} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-900 dark:text-[#e2e8f0]">{item.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`h-3 w-3 rounded-full ${item.color}`} />
+                        <span className="text-gray-900 dark:text-[#e2e8f0]">{item.label}</span>
+                      </div>
                       <span className="text-gray-500 dark:text-[#94a3b8]">{item.value}</span>
                     </div>
                     <div className="h-2 rounded-full bg-gray-200 dark:bg-slate-700">
