@@ -138,20 +138,20 @@ export default function TrialsPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-[#232e47]">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-emerald-400 dark:border-l-emerald-500 bg-emerald-50/60 dark:bg-emerald-500/5 p-4 shadow-sm">
           <p className="text-sm text-slate-500 dark:text-slate-300">Trials ativos</p>
           <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{stats.ativos}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-[#232e47]">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-blue-400 dark:border-l-blue-500 bg-blue-50/60 dark:bg-blue-500/5 p-4 shadow-sm">
           <p className="text-sm text-slate-500 dark:text-slate-300">Total monitorado</p>
           <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{stats.total}</p>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10">
-          <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-100">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-amber-400 dark:border-l-amber-500 bg-amber-50/60 dark:bg-amber-500/5 p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
             <AlertTriangle size={16} />
             Expirando em até 5 min
           </div>
-          <p className="mt-2 text-3xl font-bold text-amber-800 dark:text-amber-100">{stats.expiringSoon}</p>
+          <p className="mt-2 text-3xl font-bold text-amber-800 dark:text-amber-200">{stats.expiringSoon}</p>
         </div>
       </div>
 
@@ -189,8 +189,8 @@ export default function TrialsPage() {
               )}
               {trials.map((trial) => {
                 const statusColor = trial.ativo
-                  ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-100'
-                  : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200';
+                  ? 'border border-emerald-300 dark:border-emerald-500 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                  : 'border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-500/10 text-gray-700 dark:text-gray-300';
                 const statusLabel = trial.ativo ? 'Ativo' : 'Encerrado';
                 return (
                   <tr key={trial.id} className="border-t border-slate-100 dark:border-slate-800">
