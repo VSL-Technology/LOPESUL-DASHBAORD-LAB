@@ -18,12 +18,12 @@ function normalizeRows(data) {
 
 function statusClasses(status, messageCode) {
   if (messageCode === "RELAY_NOT_CONFIGURED") {
-    return "border-blue-500/20 bg-blue-500/10 text-blue-100";
+    return "border-blue-300 dark:border-blue-500 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300";
   }
   if (status === "online") {
-    return "border-blue-500/30 bg-blue-500/10 text-blue-100";
+    return "border-emerald-300 dark:border-emerald-500 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300";
   }
-  return "border-slate-700 bg-slate-950/60 text-slate-300";
+  return "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-500/10 text-gray-700 dark:text-gray-300";
 }
 
 function statusLabel(status, messageCode) {
@@ -100,13 +100,30 @@ export default function FrotasPage() {
 
           <div className="grid gap-4 md:grid-cols-3">
             {[
-              { label: "Receita Total", value: formatBRL(summary.receita) },
-              { label: "Sessões Ativas", value: summary.sessoes },
-              { label: "Mikrotiks Online", value: summary.online },
+              {
+                label: "Receita Total",
+                value: formatBRL(summary.receita),
+                color: "border-l-4 border-l-emerald-400 dark:border-l-emerald-500",
+                bg: "bg-emerald-50/60 dark:bg-emerald-500/5",
+              },
+              {
+                label: "Sessões Ativas",
+                value: summary.sessoes,
+                color: "border-l-4 border-l-blue-400 dark:border-l-blue-500",
+                bg: "bg-blue-50/60 dark:bg-blue-500/5",
+              },
+              {
+                label: "Mikrotiks Online",
+                value: summary.online,
+                color: "border-l-4 border-l-amber-400 dark:border-l-amber-500",
+                bg: "bg-amber-50/60 dark:bg-amber-500/5",
+              },
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1e293b] p-5 shadow-sm dark:shadow-[0_10px_30px_rgba(15,23,42,0.35)]"
+                className={`rounded-2xl border border-gray-200 dark:border-gray-700
+                ${item.color} ${item.bg}
+                p-5 shadow-sm dark:shadow-[0_10px_30px_rgba(15,23,42,0.35)]`}
               >
                 <p className="text-sm text-gray-500 dark:text-[#94a3b8]">{item.label}</p>
                 <p className="mt-3 text-3xl font-semibold text-gray-900 dark:text-white">{loading ? "..." : item.value}</p>
