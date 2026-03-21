@@ -32,12 +32,12 @@ function diffMin(a, b) {
 
 function statusBadge(status) {
   if (status === "online") {
-    return "border border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100";
+    return "border border-emerald-300 dark:border-emerald-500 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300";
   }
   if (status === "offline") {
-    return "border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-slate-200";
+    return "border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-500/10 text-gray-700 dark:text-gray-300";
   }
-  return "border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-950/60 text-gray-600 dark:text-slate-300";
+  return "border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-500/10 text-gray-700 dark:text-gray-300";
 }
 
 export default function AcessosPage() {
@@ -202,13 +202,30 @@ export default function AcessosPage() {
 
           <div className="grid gap-4 md:grid-cols-3">
             {[
-              { label: "Sessões", value: summary.total },
-              { label: "Online", value: summary.online },
-              { label: "Offline", value: summary.offline },
+              {
+                label: "Sessões",
+                value: summary.total,
+                color: "border-l-4 border-l-blue-400 dark:border-l-blue-500",
+                bg: "bg-blue-50/60 dark:bg-blue-500/5",
+              },
+              {
+                label: "Online",
+                value: summary.online,
+                color: "border-l-4 border-l-emerald-400 dark:border-l-emerald-500",
+                bg: "bg-emerald-50/60 dark:bg-emerald-500/5",
+              },
+              {
+                label: "Offline",
+                value: summary.offline,
+                color: "border-l-4 border-l-gray-400 dark:border-l-gray-500",
+                bg: "bg-gray-50/60 dark:bg-gray-500/5",
+              },
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1e293b] p-5 shadow-sm dark:shadow-[0_10px_30px_rgba(15,23,42,0.35)]"
+                className={`rounded-2xl border border-gray-200 dark:border-gray-700
+                ${item.color} ${item.bg}
+                p-5 shadow-sm dark:shadow-[0_10px_30px_rgba(15,23,42,0.35)]`}
               >
                 <p className="text-sm text-gray-500 dark:text-[#94a3b8]">{item.label}</p>
                 <p className="mt-3 text-3xl font-semibold text-gray-900 dark:text-white">{loading ? "..." : item.value}</p>
@@ -238,7 +255,7 @@ export default function AcessosPage() {
                 </select>
               </div>
 
-              <label className="flex items-center gap-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-950 px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+              <label className="flex items-center gap-3 rounded-xl border border-blue-300 dark:border-blue-500 bg-blue-100 dark:bg-blue-500/20 px-4 py-3 text-sm font-medium text-blue-700 dark:text-blue-300">
                 <input
                   type="checkbox"
                   checked={autoRefresh}
