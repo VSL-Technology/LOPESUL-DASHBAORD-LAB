@@ -83,21 +83,69 @@ const envSchema = z.object({
   }
 });
 
-const parsed = envSchema.safeParse({
-  ...process.env,
-  // aceita env legacy MIKOTIK_HOST (sem "r")
-  MIKROTIK_HOST: process.env.MIKROTIK_HOST || process.env.MIKOTIK_HOST,
-  MIKROTIK_TIMEOUT_MS: process.env.MIKROTIK_TIMEOUT_MS || process.env.MIKROTIK_TIMEOUT,
-});
+// Skip validation during Docker build (SSG phase)
+const skipValidation = process.env.SKIP_ENV_VALIDATION === 'true' || process.env.SKIP_ENV_VALIDATION === '1';
 
-if (!parsed.success) {
-  const formatted = parsed.error.issues
-    .map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`)
-    .join('\n  - ');
-  throw new Error(`Configuração de ambiente inválida:\n  - ${formatted}`);
+let env: z.infer<typeof envSchema>;
+
+if (skipValidation) {
+  // Use default values during build
+  env = {
+    NODE_ENV: 'production',
+    APP_URL: undefined,
+    DATABASE_URL: '',
+    PAGARME_SECRET_KEY: '',
+    PAGARME_WEBHOOK_SECRET: undefined,
+    PAGARME_BASE_URL: 'https://api.pagar.me/core/v5',
+    RELAY_TOKEN: '',
+    RELAY_URL: undefined,
+    RELAY_BASE: undefined,
+    RELAY_HOTSPOT_SERVER: 'hotspot1',
+    RELAY_PAID_LIST: 'paid_clients',
+    RELAY_API_SECRET: undefined,
+    NEXT_PUBLIC_RELAY_URL: undefined,
+    NEXT_PUBLIC_RELAY_TOKEN: undefined,
+    MIKROTIK_HOST: '',
+    MIKROTIK_USER: '',
+    MIKROTIK_PASS: '',
+    MIKROTIK_PORT: 8728,
+    PORTA_MIKROTIK: undefined,
+    MIKROTIK_SSL: false,
+    MIKROTIK_TIMEOUT_MS: 8000,
+    MIKROTIK_TIMEOUT: undefined,
+    MIKROTIK_VIA_VPS: false,
+    STARLINK_HOST: undefined,
+    STARLINK_VIA_VPS: false,
+    STARLINK_PING_TARGET: undefined,
+    BACKEND_ALLOW_NETCHECK: false,
+    NETCHECK_PING: true,
+    SESSION_SECRET: '',
+    INTERNAL_API_TOKEN: '',
+    INTERNAL_DEBUG_TOKEN: undefined,
+    LOG_LEVEL: 'info',
+    APP_VERSION: '1.0.0',
+    PIX_EXPIRES_SEC: 1800,
+    ALERT_SLACK_WEBHOOK_URL: undefined,
+    WG_MANAGER_URL: 'http://127.0.0.1:4001',
+    WG_MANAGER_TOKEN: '',
+  };
+} else {
+  const parsed = envSchema.safeParse({
+    ...process.env,
+    // aceita env legacy MIKOTIK_HOST (sem "r")
+    MIKROTIK_HOST: process.env.MIKROTIK_HOST || process.env.MIKOTIK_HOST,
+    MIKROTIK_TIMEOUT_MS: process.env.MIKROTIK_TIMEOUT_MS || process.env.MIKROTIK_TIMEOUT,
+  });
+
+  if (!parsed.success) {
+    const formatted = parsed.error.issues
+      .map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`)
+      .join('\n  - ');
+    throw new Error(`Configuração de ambiente inválida:\n  - ${formatted}`);
+  }
+
+  env = parsed.data;
 }
-
-const env = parsed.data;
 const relayBase = (env.RELAY_URL || env.RELAY_BASE || '').replace(/\/+$/, '');
 const relayPublic = env.NEXT_PUBLIC_RELAY_URL
   ? env.NEXT_PUBLIC_RELAY_URL.replace(/\/+$/, '')
