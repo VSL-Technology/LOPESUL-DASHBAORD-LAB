@@ -14,11 +14,36 @@ const fmtBRL = (value) =>
 
 function kpiCards(summary) {
   return [
-    { label: "Receita Hoje", value: fmtBRL(summary.receitaHoje) },
-    { label: "Receita 30 Dias", value: fmtBRL(summary.receita30Dias) },
-    { label: "Total de Vendas", value: summary.totalVendas },
-    { label: "Sessões Ativas", value: summary.sessoesAtivas },
-    { label: "Operadores Ativos", value: summary.operadoresAtivos },
+    {
+      label: "Receita Hoje",
+      value: fmtBRL(summary.receitaHoje),
+      color: "border-l-4 border-l-emerald-400 dark:border-l-emerald-500",
+      bg: "bg-emerald-50/60 dark:bg-emerald-500/5",
+    },
+    {
+      label: "Receita 30 Dias",
+      value: fmtBRL(summary.receita30Dias),
+      color: "border-l-4 border-l-blue-400 dark:border-l-blue-500",
+      bg: "bg-blue-50/60 dark:bg-blue-500/5",
+    },
+    {
+      label: "Total de Vendas",
+      value: summary.totalVendas,
+      color: "border-l-4 border-l-violet-400 dark:border-l-violet-500",
+      bg: "bg-violet-50/60 dark:bg-violet-500/5",
+    },
+    {
+      label: "Sessões Ativas",
+      value: summary.sessoesAtivas,
+      color: "border-l-4 border-l-amber-400 dark:border-l-amber-500",
+      bg: "bg-amber-50/60 dark:bg-amber-500/5",
+    },
+    {
+      label: "Operadores Ativos",
+      value: summary.operadoresAtivos,
+      color: "border-l-4 border-l-orange-400 dark:border-l-orange-500",
+      bg: "bg-orange-50/60 dark:bg-orange-500/5",
+    },
   ];
 }
 
@@ -160,19 +185,19 @@ export default function DashboardPage() {
         label: "Pagos",
         value: payments.pagos ?? 0,
         width: `${((payments.pagos ?? 0) / total) * 100}%`,
-        color: "bg-blue-500",
+        color: "bg-emerald-500",
       },
       {
         label: "Pendentes",
         value: payments.pendentes ?? 0,
         width: `${((payments.pendentes ?? 0) / total) * 100}%`,
-        color: "bg-slate-500",
+        color: "bg-amber-400",
       },
       {
         label: "Expirados",
         value: payments.expirados ?? 0,
         width: `${((payments.expirados ?? 0) / total) * 100}%`,
-        color: "bg-slate-700",
+        color: "bg-red-400",
       },
     ];
   }, [paymentTotal, summary.pagamentos]);
@@ -207,7 +232,9 @@ export default function DashboardPage() {
             {kpiCards(summary).map((item) => (
               <div
                 key={item.label}
-                className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1e293b] p-5 shadow-sm dark:shadow-[0_10px_30px_rgba(15,23,42,0.35)]"
+                className={`rounded-2xl border border-gray-200 dark:border-gray-700
+                ${item.color} ${item.bg}
+                p-5 shadow-sm dark:shadow-[0_10px_30px_rgba(15,23,42,0.35)]`}
               >
                 <p className="text-sm text-gray-500 dark:text-[#94a3b8]">{item.label}</p>
                 <p className="mt-3 text-3xl font-semibold tracking-tight text-gray-900 dark:text-[#e2e8f0]">
@@ -226,7 +253,7 @@ export default function DashboardPage() {
                     Indicadores executivos da conectividade central.
                   </p>
                 </div>
-                <div className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-100">
+                <div className="rounded-full border border-blue-300 dark:border-blue-500 bg-blue-100 dark:bg-blue-500/20 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-300">
                   Atualização automática
                 </div>
               </div>
@@ -277,7 +304,7 @@ export default function DashboardPage() {
                       <span className="text-gray-900 dark:text-[#e2e8f0]">{item.label}</span>
                       <span className="text-gray-500 dark:text-[#94a3b8]">{item.value}</span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-900">
+                    <div className="h-2 rounded-full bg-gray-200 dark:bg-slate-700">
                       <div className={`h-2 rounded-full ${item.color}`} style={{ width: item.width }} />
                     </div>
                   </div>
