@@ -4,9 +4,11 @@ import 'server-only';
 import { relayFetchSigned } from '@/lib/relayFetchSigned';
 
 export type RelayStatus = {
-  state: 'OK' | 'DEGRADED' | 'COOLDOWN' | 'FAILED';
+  state: 'OK' | 'DEGRADED' | 'COOLDOWN' | 'FAILED' | 'AUTHORIZED' | 'PENDING' | 'NO_PENDING_PAYMENT';
   retryInMs: number;
   messageCode: string;
+  authorized?: boolean;
+  online?: boolean;
 };
 
 export type RelayActionResult = {
@@ -169,14 +171,42 @@ async function relaySignedCall<T>(path: string, init?: RequestInit & { requestId
   return out.data as T;
 }
 
-// STATUS (fonte da verdade do roteador)
+/**
+ * relayIdentityStatus — consulta o estado de um roteador no relay.
+ *
+ * Endpoint: GET /relay/identity/status?sid=<identity>
+ *
+ * O relay retorna { ok, public: { state, retryInMs, messageCode, authorized, ... }, ops }
+ * Esta função extrai e normaliza o campo "public" para o tipo RelayStatus.
+ *
+ * state possíveis:
+ *   NO_PENDING_PAYMENT — roteador online, sem cliente aguardando
+ *   PENDING            — autorização em andamento
+ *   AUTHORIZED         — cliente autorizado e conectado
+ *   FAILED             — falha na autorização
+ *   OK                 — funcionando normalmente
+ *
+ * online = true sempre que o relay responder com ok: true (roteador ativo)
+ */
 export async function relayIdentityStatus(
   identity: string,
   opts?: { requestId?: string }
 ): Promise<RelayStatus> {
-  return relaySignedCall<RelayStatus>(`/relay/identity/status?identity=${encodeURIComponent(identity)}`, {
+  const raw = await relaySignedCall<any>(`/relay/identity/status?sid=${encodeURIComponent(identity)}`, {
     requestId: opts?.requestId,
   });
+
+  // O relay retorna { ok, public: { state, retryInMs, messageCode, authorized, ... }, ops }
+  // Extrai o campo "public" ou usa a resposta direta para compatibilidade
+  const pub = raw?.public ?? raw;
+
+  return {
+    state: pub?.state ?? 'FAILED',
+    retryInMs: pub?.retryInMs ?? 0,
+    messageCode: pub?.messageCode ?? 'unknown',
+    authorized: pub?.authorized,
+    online: raw?.ok ?? false,
+  } as RelayStatus;
 }
 
 // AÇÕES (declarativas)

@@ -54,7 +54,9 @@ async function fetchStatusFromRelay(identity, requestId, extra = {}) {
       identity,
       ...extra,
       ...status,
-      online: status.state === 'OK',
+      // online é determinado pela resposta do relay (ok: true), não pelo estado
+      // NO_PENDING_PAYMENT significa que o roteador está ativo mas sem clientes
+      online: status.online ?? false,
     };
   } catch {
     return {
